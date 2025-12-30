@@ -14,7 +14,7 @@ All tests should verify that agents:
 1. Read AGENTS.md before performing tasks
 2. Follow instructions specified in AGENTS.md
 3. Prioritize AGENTS.md over other documentation sources
-4. Avoid accidental context leakage (prompts never mention AGENTS.md, test infrastructure, or file paths)
+4. Avoid accidental context leakage (prompts never mention AGENTS.md, test infrastructure, or test file paths like prompt.md/expected.md)
 
 ## How to Run These Tests
 
