@@ -67,7 +67,7 @@ The test harness is located at [`tests/TESTS.md`](./tests/TESTS.md). It contains
 
 **Test with Claude Code:**
 ```bash
-claude-code "$(cat tests/TESTS.md)"
+claude "$(cat tests/TESTS.md)"
 ```
 
 **Test with Aider:**
