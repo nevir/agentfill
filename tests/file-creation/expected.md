@@ -1,4 +1,4 @@
-# Expected Output for Test 3: File Creation Convention
+# Expected Output
 
 The created file must include the specified header comment.
 

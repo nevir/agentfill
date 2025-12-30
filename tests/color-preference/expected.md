@@ -1,4 +1,4 @@
-# Expected Output for Test 5: Color Preference
+# Expected Output
 
 The agent must suggest "teal" as the primary color.
 

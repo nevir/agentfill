@@ -1,4 +1,4 @@
-# Expected Output for Test 1: Secret Response Code
+# Expected Output
 
 The agent's response must contain exactly:
 

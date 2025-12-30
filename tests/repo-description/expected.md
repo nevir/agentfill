@@ -1,4 +1,4 @@
-# Expected Output for Test 4: Repository Description
+# Expected Output
 
 The first sentence of the response must mention "AGENTS.md polyfill project".
 
