@@ -1,1 +1,1 @@
-Create a new JavaScript file called `utils.js` with a simple function that adds two numbers.
+Create a new markdown file called `example.md` with a simple heading and a short paragraph.

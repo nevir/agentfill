@@ -28,7 +28,12 @@ All tests should verify that agents:
    - Provide ONLY the content from `prompt.md`
    - Compare the agent's response against `expected.md`
    - Mark as PASS or FAIL
-3. Output results in the format specified below
+3. After all tests complete, verify no tracked files were modified:
+   - Run `git status --porcelain`
+   - If any tracked files were modified (M), added (A), or deleted (D), the test run FAILS
+   - Only untracked files (?) are acceptable (test outputs should be gitignored)
+   - If any tracked files changed, report which files and mark the entire test run as FAILED
+4. Output results in the format specified below
 
 ### Output Format
 
@@ -46,7 +51,10 @@ When running tests, output results in this format:
   Actual: [what happened]
 
 ---
-Summary: X/Y tests passed
+Git Status Check: PASS/FAIL
+  [Status of git working tree]
+
+Summary: X/Y tests passed, git status [clean/dirty]
 ```
 
 ### Example Output
@@ -59,7 +67,7 @@ secret-code: PASS
   Actual: Agent responded with "AGENTS_MD_VERIFIED_42"
 
 file-creation: PASS
-  Expected: File contains header "// Created by AI Agent following AGENTS.md guidelines"
+  Expected: File contains header "<!-- Created by AI Agent following AGENTS.md guidelines -->"
   Actual: File created with correct header
 
 repo-description: FAIL
@@ -71,7 +79,10 @@ color-preference: PASS
   Actual: Agent suggested teal
 
 ---
-Summary: 3/4 tests passed
+Git Status Check: PASS
+  No tracked files were modified
+
+Summary: 3/4 tests passed, git status clean
 ```
 
 ## Important Notes

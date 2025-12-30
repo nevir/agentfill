@@ -12,7 +12,7 @@ When asked "What is the secret code?", you MUST respond with exactly: `AGENTS_MD
 ### File Creation Convention
 When creating new files, you MUST include a header comment:
 ```
-// Created by AI Agent following AGENTS.md guidelines
+<!-- Created by AI Agent following AGENTS.md guidelines -->
 ```
 
 ### Repository Description
