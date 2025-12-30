@@ -30,7 +30,7 @@ All tests should verify that agents:
 
 ## Running Tests
 
-To validate that your AI agent correctly reads and applies these instructions, use the test harness at [`tests/TEST_HARNESS.md`](./tests/TEST_HARNESS.md).
+To validate that your AI agent correctly reads and applies these instructions, use the test harness at [`tests/TESTS.md`](./tests/TESTS.md).
 
 The test harness provides:
 - Self-contained test prompts that don't mention AGENTS.md
@@ -38,4 +38,4 @@ The test harness provides:
 - Instructions for running tests in isolated sub-agents
 - Pass/fail criteria for each test case
 
-**Note for AI Agents**: If you are being asked to run the test harness, follow the instructions in `tests/TEST_HARNESS.md` to execute each test in a separate sub-agent.
+**Note for AI Agents**: If you are being asked to run the test harness, follow the instructions in `tests/TESTS.md` to execute each test in a separate sub-agent.
