@@ -39,8 +39,8 @@ universal-agents/
 │   └── hooks/
 │       └── append_agentsmd_context.sh
 ├── CONFIG_GUIDE.md              # Detailed configuration guide
+├── TESTS.md                     # Test harness (run this to execute all tests)
 ├── tests/
-│   ├── TESTS.md                 # Test harness (run this to execute all tests)
 │   └── [test directories]/      # Self-contained test cases
 └── README.md                    # This file
 ```
@@ -60,29 +60,29 @@ This repository includes a comprehensive test suite to verify that your AI agent
 
 ### Running the Test Harness
 
-The test harness is located at [`tests/TESTS.md`](./tests/TESTS.md). It contains self-contained prompts that verify AGENTS.md compliance without mentioning the file itself.
+The test harness is located at [`TESTS.md`](./TESTS.md). It contains self-contained prompts that verify AGENTS.md compliance without mentioning the file itself.
 
 **Test with Claude Code:**
 ```bash
-claude "$(cat tests/TESTS.md)"
+claude "$(cat TESTS.md)"
 ```
 
 **Test with Aider:**
 ```bash
-aider --message "$(cat tests/TESTS.md)"
+aider --message "$(cat TESTS.md)"
 ```
 
 **Test with Cursor:**
-Open the repository in Cursor, then copy and paste the entire content of `tests/TESTS.md` into the chat.
+Open the repository in Cursor, then copy and paste the entire content of `TESTS.md` into the chat.
 
 **Test with OpenAI Codex:**
 ```bash
-codex "$(cat tests/TESTS.md)"
+codex "$(cat TESTS.md)"
 ```
 
 **Test with Gemini CLI:**
 ```bash
-gemini "$(cat tests/TESTS.md)"
+gemini "$(cat TESTS.md)"
 ```
 
 **Note:** All commands should be run from the repository root directory to ensure proper context and avoid leaking test file paths to the agent.
