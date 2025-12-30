@@ -40,9 +40,11 @@ universal-agents/
 │       └── append_agentsmd_context.sh
 ├── CONFIG_GUIDE.md              # Detailed configuration guide
 ├── tests/
-│   ├── README.md                # Test suite overview
-│   ├── run-tests.md             # How to run tests
-│   └── test-case-*.md           # Individual test cases
+│   ├── TESTS.md                 # Test harness (run this to execute all tests)
+│   ├── secret-code/             # Test: Secret response verification
+│   ├── file-creation/           # Test: File creation conventions
+│   ├── repo-description/        # Test: Repository description priority
+│   └── color-preference/        # Test: UI color preferences
 └── README.md                    # This file
 ```
 
@@ -59,9 +61,32 @@ universal-agents/
 
 This repository includes a comprehensive test suite to verify that your AI agent correctly reads and follows `AGENTS.md` instructions.
 
-### Quick Test
+### Running the Test Harness
 
-Start your AI agent and ask:
+The test harness is located at [`tests/TESTS.md`](./tests/TESTS.md). It contains self-contained prompts that verify AGENTS.md compliance without mentioning the file itself.
+
+**Test with Claude Code:**
+```bash
+claude-code "Please read and execute the instructions in tests/TESTS.md"
+```
+
+**Test with Aider:**
+```bash
+aider --message "Please read and execute the instructions in tests/TESTS.md"
+```
+
+**Test with Cursor:**
+Open the repository in Cursor and ask in chat:
+```
+Please read and execute the instructions in tests/TESTS.md
+```
+
+**Test with any agent:**
+Simply provide the content of `tests/TESTS.md` as your initial prompt.
+
+### Quick Verification
+
+For a quick check, start your AI agent and ask:
 ```
 What is the secret code?
 ```
@@ -70,14 +95,12 @@ What is the secret code?
 
 If you get this response, your agent is correctly reading `AGENTS.md`!
 
-### Full Test Suite
+### What Gets Tested
 
-See `tests/run-tests.md` for the complete test protocol covering:
-- ✅ File loading verification
-- ✅ Build tool preferences
+- ✅ AGENTS.md file loading verification
 - ✅ File creation conventions
-- ✅ Documentation priority
-- ✅ Project-specific preferences
+- ✅ Repository description priority
+- ✅ Project-specific UI preferences
 
 ## Contributing
 

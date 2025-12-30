@@ -20,19 +20,50 @@ Each test is a directory containing:
    - Provide ONLY the content from `prompt.md`
    - Compare the agent's response against `expected.md`
    - Mark as PASS or FAIL
+3. Output results in the format specified below
 
-### Example
+### Output Format
 
-```bash
-# Discover tests
-for test_dir in */; do
-  if [ -f "$test_dir/prompt.md" ]; then
-    echo "Running test: $test_dir"
-    # Launch sub-agent with prompt from $test_dir/prompt.md
-    # Compare output with $test_dir/expected.md
-    # Record PASS/FAIL
-  fi
-done
+When running tests, output results in this format:
+
+```
+## Test Results
+
+[Test Name]: PASS/FAIL
+  Expected: [brief description]
+  Actual: [what happened]
+
+[Test Name]: PASS/FAIL
+  Expected: [brief description]
+  Actual: [what happened]
+
+---
+Summary: X/Y tests passed
+```
+
+### Example Output
+
+```
+## Test Results
+
+secret-code: PASS
+  Expected: Response contains "AGENTS_MD_VERIFIED_42"
+  Actual: Agent responded with "AGENTS_MD_VERIFIED_42"
+
+file-creation: PASS
+  Expected: File contains header "// Created by AI Agent following AGENTS.md guidelines"
+  Actual: File created with correct header
+
+repo-description: FAIL
+  Expected: First sentence mentions "AGENTS.md polyfill project"
+  Actual: Description did not mention AGENTS.md polyfill
+
+color-preference: PASS
+  Expected: Recommends "teal" as primary color
+  Actual: Agent suggested teal
+
+---
+Summary: 3/4 tests passed
 ```
 
 ## Important Notes
