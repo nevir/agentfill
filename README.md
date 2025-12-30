@@ -67,7 +67,7 @@ The test harness is located at [`tests/TESTS.md`](./tests/TESTS.md). It contains
 
 **Test with Claude Code:**
 ```bash
-claude-code "@tests/TESTS.md"
+claude-code "$(cat tests/TESTS.md)"
 ```
 
 **Test with Aider:**
@@ -76,23 +76,19 @@ aider --message "$(cat tests/TESTS.md)"
 ```
 
 **Test with Cursor:**
-Open the repository in Cursor and ask in chat:
-```
-@tests/TESTS.md
-```
+Open the repository in Cursor, then copy and paste the entire content of `tests/TESTS.md` into the chat.
 
 **Test with OpenAI Codex:**
 ```bash
-codex "@tests/TESTS.md"
+codex "$(cat tests/TESTS.md)"
 ```
 
 **Test with Gemini CLI:**
 ```bash
-gemini "@tests/TESTS.md"
+gemini "$(cat tests/TESTS.md)"
 ```
 
-**Test with any agent:**
-Simply provide the content of `tests/TESTS.md` as your initial prompt.
+**Note:** All commands should be run from the repository root directory to ensure proper context and avoid leaking test file paths to the agent.
 
 ### Quick Verification
 
