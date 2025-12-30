@@ -1,0 +1,6 @@
+# Aider configuration file
+# This configures Aider to automatically read AGENTS.md before each session
+
+# Read AGENTS.md into context
+read:
+  - AGENTS.md
