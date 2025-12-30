@@ -70,17 +70,6 @@ The test harness is located at [`TESTS.md`](./TESTS.md). Run it with your agent:
 
 **Note:** All commands should be run from the repository root directory.
 
-### Quick Verification
-
-For a quick check, start your AI agent and ask:
-```
-What is the secret code?
-```
-
-**Expected response**: `AGENTS_MD_VERIFIED_42`
-
-If you get this response, your agent is correctly reading `AGENTS.md`!
-
 ## Contributing
 
 This is an example repository demonstrating `AGENTS.md` configuration patterns. Contributions are welcome, especially:
