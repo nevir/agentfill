@@ -78,5 +78,4 @@ Summary: 3/4 tests passed
 
 - **Never mention AGENTS.md in prompts**: The prompts are intentionally generic to test automatic discovery
 - **Clean context per test**: Each test MUST run in a fresh sub-agent
-- **No hardcoded test list**: Tests are discovered by listing directories
 - **Self-documenting**: Each test's `expected.md` contains its own pass criteria
