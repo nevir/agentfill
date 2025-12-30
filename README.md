@@ -67,18 +67,23 @@ The test harness is located at [`tests/TESTS.md`](./tests/TESTS.md). It contains
 
 **Test with Claude Code:**
 ```bash
-claude-code "Please read and execute the instructions in tests/TESTS.md"
+claude-code "@tests/TESTS.md"
 ```
 
 **Test with Aider:**
 ```bash
-aider --message "Please read and execute the instructions in tests/TESTS.md"
+aider --message "Follow the instructions in tests/TESTS.md" --read tests/TESTS.md
 ```
 
 **Test with Cursor:**
 Open the repository in Cursor and ask in chat:
 ```
-Please read and execute the instructions in tests/TESTS.md
+@tests/TESTS.md
+```
+
+**Test with Gemini CLI:**
+```bash
+gemini "@tests/TESTS.md"
 ```
 
 **Test with any agent:**
