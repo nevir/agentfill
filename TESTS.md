@@ -24,7 +24,11 @@ All tests should verify that agents:
 
 ### Running All Tests
 
-1. List all test directories (`tests/*`)
+> [!IMPORTANT]
+>
+> When given a shell command in the following instructions, run it exactly.
+
+1. List all test directories: `ls tests/`
 2. Set up a clean space for test outputs:
    - Clean up any previous outputs: `rm -rf outputs/`
    - Set up a clean space for each test: `ls tests | xargs -I{} mkdir -p outputs/{}`
