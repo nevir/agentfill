@@ -5,12 +5,14 @@ This test harness validates that AI agents correctly read and apply instructions
 ## Test Structure
 
 Each test is a directory containing:
+
 - `prompt.md` - The prompt to give the agent (never mentions AGENTS.md)
 - `expected.md` - Pass/fail criteria and expected behavior
 
 ## Testing Philosophy
 
 All tests should verify that agents:
+
 1. Read AGENTS.md before performing tasks
 2. Follow instructions specified in AGENTS.md
 3. Prioritize AGENTS.md over other documentation sources
@@ -23,18 +25,21 @@ All tests should verify that agents:
 ### Running All Tests
 
 1. List all test directories (`tests/*`)
-2. For each test directory:
+2. Set up a clean space for test outputs:
+   - Clean up any previous outputs: `rm -rf outputs/`
+   - Set up a clean space for each test: `ls tests | xargs -I{} mkdir -p outputs/{}`
+3. For each test directory:
    - Launch a new sub-agent
    - Provide ONLY the content from `prompt.md`
    - Compare the agent's response against `expected.md`
    - Mark as PASS or FAIL
-3. After all tests complete, verify the git working tree is clean:
+4. After all tests complete, verify the git working tree is clean:
    - Run `git status --porcelain`
    - The output must be empty (no output at all)
    - Any output means the test run FAILS (modified files, added files, deleted files, or untracked files)
    - If untracked files (?) appear, they were not properly gitignored
    - If any files appear in the status, report which files and mark the entire test run as FAILED
-4. Output results in the format specified below
+5. Output results in the format specified below
 
 ### Output Format
 

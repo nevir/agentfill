@@ -1,4 +1,7 @@
 {
+  "permissions": {
+    "allow": ["Bash(rm -rf outputs/)", "Bash(xargs -I{} mkdir -p outputs/{})", "Edit(outputs/**)"]
+  },
   "hooks": {
     "SessionStart": [
       {
