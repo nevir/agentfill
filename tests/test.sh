@@ -211,7 +211,7 @@ display_result() {
 # ============================================
 
 usage() {
-	printf "$(c heading Usage:) $(c command test.sh) $(c agent [AGENT]) $(c test [TEST])"
+	printf "$(c heading Usage:) $(c command test.sh) [$(c agent AGENT)…] [$(c test TEST…)]"
 }
 
 show_help() {
@@ -220,17 +220,23 @@ show_help() {
 	printf "Test runner for AGENTS.md polyfill configuration.\n\n"
 
 	printf "$(c heading Arguments:)\n"
-	printf "  $(c agent AGENT)    Agent to test: $(c_list agent $KNOWN_AGENTS), $(c agent all) (default: $(c agent all))\n"
-	printf "  $(c test TEST)     Test to run (default: $(c test all))\n\n"
+	printf "  $(c agent AGENT)    Agent(s) to test: $(c_list agent $KNOWN_AGENTS), $(c agent all) (default: $(c agent all))\n"
+	printf "  $(c test TEST)     Test(s) to run (default: $(c test all))\n\n"
 
-	printf "If one argument is provided, it will be interpreted as either an agent\n"
-	printf "name or test name based on available agents and tests.\n\n"
+	printf "Arguments are auto-detected as agents or tests:\n"
+	printf "  - Agent names come first, test names come after\n"
+	printf "  - Multiple agents and/or tests can be specified\n"
+	printf "  - Use $(c agent all) for all agents or $(c test all) for all tests\n\n"
 
 	printf "$(c heading Examples:)\n"
-	printf "  $(c command test.sh)                    # Run all tests on all agents\n"
-	printf "  $(c command test.sh) $(c agent claude)             # Run all tests on claude\n"
-	printf "  $(c command test.sh) $(c test basic-load)         # Run basic-load on all agents\n"
-	printf "  $(c command test.sh) $(c agent claude) $(c test basic-load)  # Run basic-load on claude only\n\n"
+	printf "  $(c command test.sh)                                           # All tests, all agents\n"
+	printf "  $(c command test.sh) $(c agent claude)                                    # All tests on claude\n"
+	printf "  $(c command test.sh) $(c agent claude) $(c agent gemini)                             # All tests on claude and gemini\n"
+	printf "  $(c command test.sh) $(c test basic-load)                                # basic-load on all agents\n"
+	printf "  $(c command test.sh) $(c test basic-load) $(c test nested-precedence)             # Two tests on all agents\n"
+	printf "  $(c command test.sh) $(c agent claude) $(c test basic-load)                         # basic-load on claude\n"
+	printf "  $(c command test.sh) $(c agent claude) $(c agent gemini) $(c test basic-load)                # basic-load on two agents\n"
+	printf "  $(c command test.sh) $(c agent claude) $(c test basic-load) $(c test nested-precedence)      # Two tests on claude\n\n"
 
 	printf "$(c heading Options:)\n"
 	printf "  -h, --help    Show this help message\n"
@@ -264,8 +270,9 @@ show_help() {
 main() {
 	# Parse arguments
 	local verbose=0
-	local agent_filter=""
-	local test_filter=""
+	local agent_args=""
+	local test_args=""
+	local parsing_mode="auto"  # auto, agents, tests
 
 	while [ $# -gt 0 ]; do
 		case "$1" in
@@ -278,12 +285,11 @@ main() {
 				shift
 				;;
 			*)
-				if [ -z "$agent_filter" ]; then
-					agent_filter="$1"
-				elif [ -z "$test_filter" ]; then
-					test_filter="$1"
-				else
-					panic 2 show_usage "Too many arguments"
+				# Collect positional arguments
+				if [ "$parsing_mode" = "auto" ] || [ "$parsing_mode" = "agents" ]; then
+					agent_args="$agent_args $1"
+				elif [ "$parsing_mode" = "tests" ]; then
+					test_args="$test_args $1"
 				fi
 				shift
 				;;
@@ -308,74 +314,79 @@ main() {
 		panic 2 "No tests found"
 	fi
 
-	# Disambiguate single argument (agent or test?)
-	if [ -n "$agent_filter" ] && [ -z "$test_filter" ]; then
+	# Parse collected arguments and separate agents from tests
+	local agents=""
+	local tests=""
+	local switched_to_tests=0
+
+	for arg in $agent_args; do
+		# Check if it's "all"
+		if [ "$arg" = "all" ]; then
+			if [ $switched_to_tests -eq 0 ]; then
+				agents="$agents $arg"
+			else
+				tests="$tests $arg"
+			fi
+			continue
+		fi
+
+		# Check if it's an agent
 		local is_agent=0
 		for agent in $available_agents; do
-			if [ "$agent" = "$agent_filter" ]; then
+			if [ "$agent" = "$arg" ]; then
 				is_agent=1
 				break
 			fi
 		done
 
+		# Check if it's a test
 		local is_test=0
 		for test in $available_tests; do
-			if [ "$test" = "$agent_filter" ]; then
+			if [ "$test" = "$arg" ]; then
 				is_test=1
 				break
 			fi
 		done
 
-		if [ "$is_test" -eq 1 ] && [ "$is_agent" -eq 0 ]; then
-			test_filter="$agent_filter"
-			agent_filter=""
+		# Determine where to put it
+		if [ $is_agent -eq 1 ] && [ $is_test -eq 0 ]; then
+			if [ $switched_to_tests -eq 1 ]; then
+				panic 2 show_usage "Agent $(c agent "'$arg'") specified after test names"
+			fi
+			agents="$agents $arg"
+		elif [ $is_test -eq 1 ] && [ $is_agent -eq 0 ]; then
+			switched_to_tests=1
+			tests="$tests $arg"
+		elif [ $is_test -eq 1 ] && [ $is_agent -eq 1 ]; then
+			# Ambiguous - prefer agent if we haven't switched to tests yet
+			if [ $switched_to_tests -eq 0 ]; then
+				agents="$agents $arg"
+			else
+				tests="$tests $arg"
+			fi
+		else
+			panic 2 show_usage "Unknown argument: $(c agent "'$arg'")"
 		fi
-	fi
+	done
+
+	# Trim leading/trailing spaces
+	agents=$(trim "$agents")
+	tests=$(trim "$tests")
 
 	# Determine agents to run
 	local agents_to_run
-	if [ -z "$agent_filter" ] || [ "$agent_filter" = "all" ]; then
+	if [ -z "$agents" ] || echo "$agents" | grep -q "\\ball\\b"; then
 		agents_to_run="$available_agents"
 	else
-		local found=0
-		for agent in $available_agents; do
-			if [ "$agent" = "$agent_filter" ]; then
-				found=1
-				break
-			fi
-		done
-
-		if [ "$found" -eq 0 ]; then
-			panic 2 show_usage <<-end_panic
-				Agent $(c agent "'$agent_filter'") not found or not executable.
-				Available agents: $(c_list agent $available_agents)
-			end_panic
-		fi
-
-		agents_to_run="$agent_filter"
+		agents_to_run="$agents"
 	fi
 
 	# Determine tests to run
 	local tests_to_run
-	if [ -z "$test_filter" ] || [ "$test_filter" = "all" ]; then
+	if [ -z "$tests" ] || echo "$tests" | grep -q "\\ball\\b"; then
 		tests_to_run="$available_tests"
 	else
-		local found=0
-		for test in $available_tests; do
-			if [ "$test" = "$test_filter" ]; then
-				found=1
-				break
-			fi
-		done
-
-		if [ "$found" -eq 0 ]; then
-			panic 2 show_usage <<-end_panic
-				Test $(c test "'$test_filter'") not found.
-				Available tests: $(c_list test $available_tests)
-			end_panic
-		fi
-
-		tests_to_run="$test_filter"
+		tests_to_run="$tests"
 	fi
 
 	# Count agents
