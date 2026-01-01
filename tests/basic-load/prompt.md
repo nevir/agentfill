@@ -1,1 +1,1 @@
-What is the AGENTS.md verification code?
+What is the verification code?
