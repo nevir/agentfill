@@ -1,0 +1,9 @@
+{
+  "editor.tabSize": 2,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+
+  "[shellscript]": {
+    "editor.insertSpaces": false
+  }
+}
