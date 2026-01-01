@@ -16,6 +16,7 @@ A comprehensive example repository demonstrating how to configure popular AI cod
 ## Quick Start
 
 1. **Clone this repository**:
+
    ```bash
    git clone <repository-url>
    cd universal-agents
@@ -29,7 +30,7 @@ A comprehensive example repository demonstrating how to configure popular AI cod
 
 ```
 universal-agents/
-├── AGENTS.md                    # Example AGENTS.md with test cases
+├── AGENTS.md                    # Example AGENTS.md with test instructions
 ├── CLAUDE.md                    # Claude Code configuration (imports AGENTS.md)
 ├── .aider.conf.yml              # Aider configuration
 ├── .gemini/
@@ -39,36 +40,35 @@ universal-agents/
 │   └── hooks/
 │       └── append_agentsmd_context.sh
 ├── CONFIG_GUIDE.md              # Detailed configuration guide
-├── TESTS.md                     # Test harness (run this to execute all tests)
 ├── tests/
-│   └── [test directories]/      # Self-contained test cases
+│   ├── test.sh                  # Test runner script
+│   ├── README.md                # Test documentation
+│   └── [test directories]/      # Individual test cases
 └── README.md                    # This file
 ```
 
 ## Configuration by Agent
 
-| Agent | Status | Config File | Details |
-|-------|--------|-------------|---------|
-| **Aider** | ✅ Supported | `.aider.conf.yml` | See [CONFIG_GUIDE.md](CONFIG_GUIDE.md#aider-configuration) |
-| **Gemini CLI** | ✅ Supported | `.gemini/settings.json` | See [CONFIG_GUIDE.md](CONFIG_GUIDE.md#gemini-cli-configuration) |
-| **Cursor/Codex** | ✅ Native | None required | See [CONFIG_GUIDE.md](CONFIG_GUIDE.md#cursorcodex-configuration) |
-| **Claude Code** | ⚠️ Workaround | `CLAUDE.md` + hooks | See [CONFIG_GUIDE.md](CONFIG_GUIDE.md#claude-code-configuration) |
+| Agent            | Status        | Config File             | Details                                                          |
+| ---------------- | ------------- | ----------------------- | ---------------------------------------------------------------- |
+| **Aider**        | ✅ Supported  | `.aider.conf.yml`       | See [CONFIG_GUIDE.md](CONFIG_GUIDE.md#aider-configuration)       |
+| **Gemini CLI**   | ✅ Supported  | `.gemini/settings.json` | See [CONFIG_GUIDE.md](CONFIG_GUIDE.md#gemini-cli-configuration)  |
+| **Cursor/Codex** | ✅ Native     | None required           | See [CONFIG_GUIDE.md](CONFIG_GUIDE.md#cursorcodex-configuration) |
+| **Claude Code**  | ⚠️ Workaround | `CLAUDE.md` + hooks     | See [CONFIG_GUIDE.md](CONFIG_GUIDE.md#claude-code-configuration) |
 
 ## Testing AGENTS.md Support
 
-This repository includes a comprehensive test suite to verify that your AI agent correctly reads and follows `AGENTS.md` instructions.
+This repository includes a test suite to verify that your AI agent correctly loads `AGENTS.md`.
 
-### Running the Test Harness
+### Running Tests
 
-The test harness is located at [`TESTS.md`](./TESTS.md). Run it with your agent:
+```sh
+./tests/test.sh              # Run all tests on all available agents
+./tests/test.sh claude       # Run all tests on claude
+./tests/test.sh basic-load   # Run specific test on all agents
+```
 
-- `claude "$(cat TESTS.md)"`
-- `aider --message "$(cat TESTS.md)"`
-- `cursor-agent chat "$(cat TESTS.md)"`
-- `codex "$(cat TESTS.md)"`
-- `gemini "$(cat TESTS.md)"`
-
-**Note:** All commands should be run from the repository root directory.
+See [tests/AGENTS.md](tests/AGENTS.md) for test design guidelines.
 
 ## Contributing
 
