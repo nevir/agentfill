@@ -1,1 +1,1 @@
-Read the file sandbox/subfolder/task.md and follow its instructions.
+Read the file subfolder/task.md and follow its instructions.

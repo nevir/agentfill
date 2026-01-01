@@ -1,1 +1,1 @@
-Read the file sandbox/project-a/task.md and follow its instructions.
+Read the file project-a/task.md and follow its instructions.
