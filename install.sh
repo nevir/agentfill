@@ -11,14 +11,19 @@ color_red='\033[0;31m'
 color_green='\033[0;32m'
 color_yellow='\033[0;33m'
 color_blue='\033[0;34m'
+color_purple='\033[0;35m'
 color_cyan='\033[0;36m'
 color_bold='\033[1m'
 color_reset='\033[0m'
 
+# Semantic colors
 color_error="$color_red"
 color_success="$color_green"
 color_warning="$color_yellow"
 color_heading="$color_bold"
+color_agent="$color_cyan"
+color_flag="$color_purple"
+color_path="$color_yellow"
 
 # ============================================
 # Utility functions (borrowed from tests/test.sh)
@@ -542,7 +547,7 @@ apply_changes() {
 # ============================================
 
 usage() {
-	printf "$(c heading Usage:) $(c cyan install.sh) [OPTIONS]"
+	printf "$(c heading Usage:) install.sh [$(c flag OPTIONS)] [$(c path PATH)] [$(c agent AGENTS...)]"
 }
 
 show_help() {
@@ -550,24 +555,24 @@ show_help() {
 	printf "$(usage)\n\n"
 	printf "AGENTS.md polyfill installer - Configure AI agents to support AGENTS.md\n\n"
 
+	printf "$(c heading Arguments:)\n"
+	printf "  $(c path PATH)                Project directory (default: current directory)\n"
+	printf "  $(c agent AGENTS...)           Agent names to configure (default: all)\n"
+	printf "                      Valid agents: $(c agent aider), $(c agent gemini), $(c agent claude)\n\n"
+
 	printf "$(c heading Options:)\n"
-	printf "  -h, --help          Show this help message\n"
-	printf "  -y, --yes           Auto-confirm (skip confirmation prompt)\n"
-	printf "  -n, --dry-run       Show plan only, don't apply changes\n"
-	printf "  --claude-hook       Use SessionStart hook for Claude (default: CLAUDE.md import)\n"
-	printf "  --no-aider          Skip Aider configuration\n"
-	printf "  --no-gemini         Skip Gemini CLI configuration\n"
-	printf "  --no-claude         Skip Claude Code configuration\n"
-	printf "  --project-dir PATH  Specify project directory (default: current dir)\n\n"
+	printf "  $(c flag -h), $(c flag --help)          Show this help message\n"
+	printf "  $(c flag -y), $(c flag --yes)           Auto-confirm (skip confirmation prompt)\n"
+	printf "  $(c flag -n), $(c flag --dry-run)       Show plan only, don't apply changes\n"
+	printf "  $(c flag --claude-hook)       Use SessionStart hook for Claude (default: CLAUDE.md import)\n\n"
 
 	printf "$(c heading Examples:)\n"
-	printf "  $(c cyan install.sh)                  # Interactive install in current directory\n"
-	printf "  $(c cyan install.sh) -y               # Auto-confirm all changes\n"
-	printf "  $(c cyan install.sh) -n               # Dry-run only\n"
-	printf "  $(c cyan install.sh) --claude-hook    # Use SessionStart hook for Claude\n\n"
-
-	printf "$(c heading One-liner install:)\n"
-	printf "  curl -fsSL https://raw.githubusercontent.com/.../install.sh | sh\n\n"
+	printf "  install.sh                           # All agents, current directory\n"
+	printf "  install.sh $(c agent aider)                       # Only Aider, current directory\n"
+	printf "  install.sh $(c path /path/to/project)            # All agents, specific directory\n"
+	printf "  install.sh $(c path .) $(c agent aider) $(c agent gemini)              # Aider and Gemini in current directory\n"
+	printf "  install.sh $(c flag -y) $(c agent aider)                    # Auto-confirm, Aider only\n"
+	printf "  install.sh $(c flag -n)                          # Dry-run, all agents\n\n"
 }
 
 # ============================================
@@ -579,11 +584,11 @@ main() {
 	local auto_confirm=false
 	local dry_run=false
 	local claude_hook=false
-	local skip_aider=false
-	local skip_gemini=false
-	local skip_claude=false
 	local project_dir="."
+	local agents=""
+	local positional_args=""
 
+	# First pass: collect flags and positional args
 	while [ $# -gt 0 ]; do
 		case "$1" in
 			-h|--help)
@@ -602,33 +607,88 @@ main() {
 				claude_hook=true
 				shift
 				;;
-			--no-aider)
-				skip_aider=true
-				shift
-				;;
-			--no-gemini)
-				skip_gemini=true
-				shift
-				;;
-			--no-claude)
-				skip_claude=true
-				shift
-				;;
-			--project-dir)
-				project_dir="$2"
-				shift 2
+			-*)
+				panic 2 show_usage "Unknown option: $1"
 				;;
 			*)
-				panic 2 show_usage "Unknown option: $1"
+				positional_args="$positional_args $1"
+				shift
 				;;
 		esac
 	done
+
+	# Parse positional arguments: [path] [agents...]
+	positional_args=$(trim "$positional_args")
+	if [ -n "$positional_args" ]; then
+		set -- $positional_args
+		local first_arg="$1"
+
+		# Check if first arg is a valid agent name
+		case "$first_arg" in
+			aider|gemini|claude)
+				# It's an agent name - check for ambiguity
+				if [ -e "$first_arg" ]; then
+					panic 2 <<-EOF
+						Ambiguous argument: $(c agent "'$first_arg'")
+						This is both a valid agent name AND an existing path.
+						Please rename the file/directory or use an explicit path like $(c path "'./$first_arg'")
+					EOF
+				fi
+				# All args are agents
+				agents="$positional_args"
+				;;
+			*)
+				# First arg might be a path - validate it exists if it looks like a path
+				# Otherwise, treat as invalid agent name
+				if [ -e "$first_arg" ] || [ "$first_arg" = "." ] || [ "$first_arg" = ".." ] || echo "$first_arg" | grep -q "/"; then
+					# It's a path (exists or looks like a path with /)
+					project_dir="$first_arg"
+					shift
+					# Remaining args are agents
+					agents="$*"
+				else
+					# Doesn't exist and doesn't look like a path - must be invalid agent
+					panic 2 "Unknown agent: $(c agent "'$first_arg'") (valid agents: $(c agent aider), $(c agent gemini), $(c agent claude))"
+				fi
+				;;
+		esac
+	fi
+
+	# Determine which agents to skip
+	local skip_aider=true
+	local skip_gemini=true
+	local skip_claude=true
+
+	if [ -z "$agents" ]; then
+		# No agents specified - enable all
+		skip_aider=false
+		skip_gemini=false
+		skip_claude=false
+	else
+		# Enable only specified agents
+		for agent in $agents; do
+			case "$agent" in
+				aider)
+					skip_aider=false
+					;;
+				gemini)
+					skip_gemini=false
+					;;
+				claude)
+					skip_claude=false
+					;;
+				*)
+					panic 2 "Unknown agent: $(c agent "'$agent'") (valid agents: $(c agent aider), $(c agent gemini), $(c agent claude))"
+					;;
+			esac
+		done
+	fi
 
 	# Check requirements
 	check_perl
 
 	# Change to project directory
-	cd "$project_dir" || panic 2 "Cannot access directory: $project_dir"
+	cd "$project_dir" || panic 2 "Cannot access directory: $(c path "'$project_dir'")"
 
 	# Welcome
 	printf "\n$(c heading '=== AGENTS.md Polyfill Installer ===')\n"
