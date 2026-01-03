@@ -72,17 +72,15 @@ trim() {
 extract_answer() {
 	local text="$1"
 
-	# Try to extract content between <answer> and </answer> tags
-	# If tags are found, return only the content between them
-	# Otherwise, return the original text (for backwards compatibility)
-
-	# Look for answer tags NOT preceded by backtick
+	# Extract content between <answer> and </answer> tags
 	# Match the LAST occurrence to avoid backticked examples
+	# Returns empty string if tags are not found
+
 	if echo "$text" | grep -q "<answer>"; then
 		# Use perl for multiline matching, taking the last match to avoid backticked examples
 		echo "$text" | perl -0777 -ne 'my @matches = /<answer>\s*(.*?)\s*<\/answer>/gs; print $matches[-1] if @matches'
 	else
-		echo "$text"
+		echo ""
 	fi
 }
 
@@ -229,7 +227,7 @@ run_test() {
 
 	output=$(trim "$output")
 
-	# Extract answer from <answer> tags if present
+	# Extract answer from <answer> tags (required)
 	local extracted_answer=$(extract_answer "$output")
 	extracted_answer=$(trim "$extracted_answer")
 
@@ -237,6 +235,12 @@ run_test() {
 	TEST_EXPECTED="$expected"
 	TEST_GOT="$output"
 	TEST_EXTRACTED="$extracted_answer"
+
+	# Check if answer tags were found
+	if [ -z "$extracted_answer" ]; then
+		TEST_EXTRACTED="<missing answer tags>"
+		return 1
+	fi
 
 	if [ "$extracted_answer" = "$expected" ]; then
 		return 0

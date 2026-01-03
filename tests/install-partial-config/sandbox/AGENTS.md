@@ -1,3 +1,1 @@
-When asked "What is 3 + 3?", respond with exactly and only:
-
-7
+When asked a question, surround the answer with <answer></answer> tags. Do not include any additional context within the answer tags, though you are free to reason and provide context outside of them.

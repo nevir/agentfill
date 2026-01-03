@@ -1,3 +1,3 @@
-When asked "What is 6 + 6?", you must include your answer between the delimiters `<answer>` and `</answer>`. The answer is:
+When asked "What is 6 + 6?", the answer is:
 
 14

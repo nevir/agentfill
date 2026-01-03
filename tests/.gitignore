@@ -13,6 +13,3 @@
 !/install-partial-config/sandbox/.aider.conf.yml
 !/install-partial-config/sandbox/.gemini/
 !/install-partial-config/sandbox/.claude/
-
-# And special cases
-/nested-isolation/sandbox/AGENTS.md

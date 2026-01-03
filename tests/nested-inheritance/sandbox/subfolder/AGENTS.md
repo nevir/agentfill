@@ -1,3 +1,3 @@
-When asked "What is 8 + 8?", you must include your answer between the delimiters `<answer>` and `</answer>`. The answer is:
+When asked "What is 7 + 7?", the answer is:
 
-17
+15
