@@ -1,6 +1,6 @@
 # Universal AGENTS.md Polyfill
 
-Universal AGENTS.md support for all AI coding agents.
+Universal AGENTS.md support for popular coding agents.
 
 ## Installation
 
@@ -8,25 +8,11 @@ Universal AGENTS.md support for all AI coding agents.
 curl -fsSL https://raw.githubusercontent.com/agentsmd/universal-agents/main/install.sh | sh
 ```
 
-Or install for specific agents:
-
-```bash
-./install.sh claude
-./install.sh gemini
-```
-
-## What is AGENTS.md?
-
-AGENTS.md is an open standard for providing AI coding agents with project-specific context and instructions. It's used by 60,000+ open source projects, but not all AI agents support it natively.
-
-This tool adds AGENTS.md support to any agent through intelligent polyfills.
-
 ## Features
 
 ✨ **One-Command Setup** - Install and configure in seconds
 🔧 **Smart Polyfills** - Implements AGENTS.md support via SessionStart hooks
 📂 **Hierarchical Support** - Proper inheritance from nested AGENTS.md files
-🎯 **Agent-Specific** - Install only what you need
 🔄 **Idempotent** - Safe to re-run, updates only what's needed
 
 ## Supported Agents
@@ -40,20 +26,14 @@ More agents coming soon.
 
 ## How It Works
 
-The installer configures each agent to recognize AGENTS.md files:
-
-1. **Detects existing configuration** - Won't overwrite your settings
-2. **Creates polyfill hooks** - Adds missing AGENTS.md behavior where needed
-3. **Enables hierarchical loading** - Scoped instructions work correctly
-4. **Shows you exactly what changed** - Interactive diff before applying
+The installer creates polyfill hooks that teach agents to recognize AGENTS.md files ([learn more about the standard](https://agents.md)).
 
 ### For Claude Code
 
-Installs a SessionStart hook at `.agents/polyfills/claude_agentsmd.sh` that:
-- Discovers all AGENTS.md files in your project
-- Loads the root AGENTS.md automatically (applies to everything)
-- Instructs Claude to load nested AGENTS.md files as you work
-- Enforces correct precedence (closer = higher priority)
+Installs a SessionStart hook that implements hierarchical AGENTS.md support:
+- **On-demand loading** - Loads AGENTS.md files only as you work in relevant directories (minimizes context token usage)
+- **Hierarchical inheritance** - Nested AGENTS.md files automatically apply with proper precedence
+- **Root context** - Project-wide AGENTS.md loaded once at startup
 
 ### For Gemini
 
