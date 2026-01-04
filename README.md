@@ -26,7 +26,7 @@ More agents coming soon.
 
 ## How It Works
 
-The installer creates polyfill hooks that teach agents to recognize AGENTS.md files ([learn more about the standard](https://agents.md)).
+The installer configures agents to support AGENTS.md ([learn more about the standard](https://agents.md)) - either through direct configuration or by adding polyfill hooks where native support is missing.
 
 ### For Claude Code
 
