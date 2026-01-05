@@ -3,71 +3,20 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-TESTS_DIR="$REPO_ROOT/tests"
+TESTS_DIR="$SCRIPT_DIR/agents"
 
 cd "$REPO_ROOT"
 
 KNOWN_AGENTS="aider claude cursor gemini"
 
-# ============================================
-# Colors
-# ============================================
-
-color_red='\033[0;31m'
-color_green='\033[0;32m'
-color_yellow='\033[0;33m'
-color_blue='\033[0;34m'
-color_purple='\033[0;35m'
-color_cyan='\033[0;36m'
-color_bold='\033[1m'
-color_reset='\033[0m'
-
-# Semantic colors
-color_error="$color_red"
-color_success="$color_green"
-color_warning="$color_yellow"
-color_agent="$color_cyan"
-color_test="$color_yellow"
-color_command="$color_purple"
-color_heading="$color_bold"
-
-c() {
-	local color_name="$1"; shift
-	local text="$*"
-	local var_name
-	local color_code
-
-	var_name="color_$color_name"
-	eval "color_code=\$$var_name"
-
-	printf "%s%s%s" "$color_code" "$text" "$color_reset"
-}
-
-c_list() {
-	local color_type="$1"
-	shift
-	local result=""
-	local first=1
-
-	for item in "$@"; do
-		[ $first -eq 0 ] && result="$result, "
-		result="$result$(c "$color_type" "$item")"
-		first=0
-	done
-
-	echo "$result"
-}
+# Load common libraries
+. "$SCRIPT_DIR/_common/colors.sh"
+. "$SCRIPT_DIR/_common/utils.sh"
+. "$SCRIPT_DIR/_common/output.sh"
 
 # ============================================
-# Utilities
+# Agent-specific Utilities
 # ============================================
-
-trim() {
-	local var="$1"
-	var="${var#"${var%%[![:space:]]*}"}"
-	var="${var%"${var##*[![:space:]]}"}"
-	echo "$var"
-}
 
 extract_answer() {
 	local text="$1"
@@ -84,40 +33,6 @@ extract_answer() {
 	fi
 }
 
-indent() {
-	local spaces="$1"
-	local text="$2"
-	echo "$text" | while IFS= read -r line; do
-		printf "%${spaces}s%s\n" "" "$line"
-	done
-}
-
-panic() {
-	local exit_code="$1"
-	shift
-	local show_usage=0
-	local message
-
-	if [ "$1" = "show_usage" ]; then
-		show_usage=1
-		shift
-	fi
-
-	if [ $# -gt 0 ]; then
-		message="$*"
-	else
-		message=$(cat)
-	fi
-
-	printf "\n$(c error Error:) $(trim "$message")\n" >&2
-
-	if [ "$show_usage" -eq 1 ]; then
-		printf "\n$(usage)\n" >&2
-	fi
-
-	printf "\n" >&2
-	exit "$exit_code"
-}
 
 # ============================================
 # Discovery
@@ -196,12 +111,12 @@ run_test() {
 	# Run agent from within temp directory
 	if [ "$VERBOSE" -eq 1 ]; then
 		# In verbose mode, clear the spinner line and show command and stream output
-		printf "\r\033[K"  # Clear the entire line
+		printf "\r\033[K"
 		printf "  $(c test $test_name)\n"
 		printf "    $(c heading Temp dir:)\n"
-		indent 6 "$temp_dir"
+		print_indented 6 "$temp_dir"
 		printf "    $(c heading Command:)\n"
-		indent 6 "$TEST_COMMAND"
+		print_indented 6 "$TEST_COMMAND"
 		printf "    $(c heading Full output:)\n"
 
 		case "$agent" in
@@ -272,8 +187,7 @@ display_result() {
 			printf "    $(c success Result:) $(c success PASS)\n"
 		else
 			# In normal mode, clear spinner and show checkmark
-			printf "\r\033[K"  # Clear the entire line
-			printf "$(c success ✓) $(c test $test_name)\n"
+			print_test_pass "$test_name"
 		fi
 	else
 		if [ "$VERBOSE" -eq 1 ]; then
@@ -287,18 +201,17 @@ display_result() {
 			printf "      %s\n" "$TEST_TEMP_DIR"
 		else
 			# In normal mode, show everything for failures
-			printf "\r\033[K"  # Clear the entire line
-			printf "$(c error ✗) $(c test $test_name)\n"
+			print_test_fail "$test_name"
 			printf "    $(c heading Temp dir:)\n"
-			indent 6 "$TEST_TEMP_DIR"
+			print_indented 6 "$TEST_TEMP_DIR"
 			printf "    $(c heading Command:)\n"
-			indent 6 "$TEST_COMMAND"
+			print_indented 6 "$TEST_COMMAND"
 			printf "    $(c heading Full output:)\n"
-			indent 6 "$TEST_GOT"
+			print_indented 6 "$TEST_GOT"
 			printf "    $(c heading Extracted:)\n"
-			indent 6 "$TEST_EXTRACTED"
+			print_indented 6 "$TEST_EXTRACTED"
 			printf "    $(c heading Expected:)\n"
-			indent 6 "$TEST_EXPECTED"
+			print_indented 6 "$TEST_EXPECTED"
 		fi
 	fi
 }
@@ -499,13 +412,13 @@ main() {
 	printf "\n"
 
 	for agent in $agents_to_run; do
-		printf "$(c blue ===) $(c agent $agent) $(c blue ===)\n"
+		print_section_header "$agent" "agent"
 
 		local passed=0
 		local failed=0
 
 		for test_name in $tests_to_run; do
-			printf "\r◌ $(c test $test_name)"
+			print_test_running "$test_name"
 
 			if run_test "$agent" "$test_name"; then
 				passed=$((passed + 1))
