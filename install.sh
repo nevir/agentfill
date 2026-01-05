@@ -58,19 +58,11 @@ c_list() {
 # Utilities
 # ============================================
 
-is_supported_agent() {
-	local agent="$1"
-	for supported in $SUPPORTED_AGENTS; do
-		[ "$agent" = "$supported" ] && return 0
-	done
-	return 1
-}
-
-is_enabled_agent() {
-	local agent="$1"
-	local enabled_list="$2"
-	for enabled in $enabled_list; do
-		[ "$agent" = "$enabled" ] && return 0
+list_contains() {
+	local item="$1"
+	local list="$2"
+	for list_item in $list; do
+		[ "$item" = "$list_item" ] && return 0
 	done
 	return 1
 }
@@ -80,14 +72,6 @@ trim() {
 	var="${var#"${var%%[![:space:]]*}"}"
 	var="${var%"${var##*[![:space:]]}"}"
 	echo "$var"
-}
-
-indent() {
-	local spaces="$1"
-	local text="$2"
-	echo "$text" | while IFS= read -r line; do
-		printf "%${spaces}s%s\n" "" "$line"
-	done
 }
 
 panic() {
@@ -135,76 +119,51 @@ check_perl() {
 # JSON operations (Perl)
 # ============================================
 
-json_set() {
+json_merge_deep() {
 	local file="$1"
-	local key_path="$2"
-	local value_json="$3"
-	local temp_file="/tmp/json_set_tmp_$$_$(date +%s)"
+	local merge_json="$2"
+	local temp_file="/tmp/json_merge_tmp_$$_$(date +%s)"
 
 	cat "$file" | perl -MJSON::PP -0777 -e '
 my $json = JSON::PP->new->utf8->relaxed->pretty->canonical;
-my $data = $json->decode(do { local $/; <STDIN> });
-my $value = $json->decode(q{'"$value_json"'});
+my $base = $json->decode(do { local $/; <STDIN> });
+my $merge = $json->decode(q{'"$merge_json"'});
+my $base_json = $json->encode($base);
 
-my @keys = split /\./, q{'"$key_path"'};
-my $ref = $data;
-$ref = ($ref->{$_} //= {}) for @keys[0..$#keys-1];
+sub merge_recursive {
+	my ($base, $merge) = @_;
 
-my $last = $keys[-1];
-if (ref $ref->{$last} eq "ARRAY" && ref $value eq "ARRAY") {
-	my %seen;
-	$ref->{$last} = [grep { !$seen{$_}++ } (@{$ref->{$last}}, @$value)];
-} else {
-	$ref->{$last} = $value;
-}
-
-print $json->encode($data);
-' > "$temp_file"
-
-	mv "$temp_file" "$file"
-}
-
-json_has_value() {
-	local file="$1"
-	local key_path="$2"
-	local search_value="$3"
-
-	cat "$file" | perl -MJSON::PP -0777 -e '
-my $json = JSON::PP->new->utf8->relaxed;
-my $data = $json->decode(do { local $/; <STDIN> });
-
-my @keys = split /\./, q{'"$key_path"'};
-my $ref = $data;
-
-# Navigate to key, return false if path does not exist
-for my $key (@keys) {
-	if (ref $ref eq "HASH" && exists $ref->{$key}) {
-		$ref = $ref->{$key};
+	if (ref $merge eq "HASH") {
+		$base = {} unless ref $base eq "HASH";
+		for my $key (keys %$merge) {
+			$base->{$key} = merge_recursive($base->{$key}, $merge->{$key});
+		}
+		return $base;
+	} elsif (ref $merge eq "ARRAY") {
+		$base = [] unless ref $base eq "ARRAY";
+		# For arrays, merge unique elements
+		my %seen;
+		my @result;
+		for my $item (@$base, @$merge) {
+			my $key = ref $item ? $json->encode($item) : $item;
+			push @result, $item unless $seen{$key}++;
+		}
+		return \@result;
 	} else {
-		print "false";
-		exit 0;
+		return $merge;
 	}
 }
 
-if (ref $ref eq "ARRAY") {
-	print((grep { $_ eq q{'"$search_value"'} } @$ref) ? "true" : "false");
-} elsif (defined $ref && $ref eq q{'"$search_value"'}) {
-	print "true";
-} else {
-	print "false";
-}
-'
-}
+my $result = merge_recursive($base, $merge);
+my $result_json = $json->encode($result);
 
-json_create() {
-	local file="$1"
-	local content="$2"
+print $result_json;
+exit($base_json eq $result_json ? 0 : 1);
+' > "$temp_file"
 
-	echo "$content" | perl -MJSON::PP -0777 -e '
-my $json = JSON::PP->new->utf8->pretty->canonical;
-my $data = $json->decode(do { local $/; <STDIN> });
-print $json->encode($data);
-' > "$file"
+	local exit_code=$?
+	mv "$temp_file" "$file"
+	return $exit_code
 }
 
 # ============================================
@@ -479,6 +438,27 @@ ask_confirmation() {
 # Change planning
 # ============================================
 
+plan_json() {
+	local settings_file="$1"
+	local template_content="$2"
+	local modify_desc="$3"
+
+	if [ -f "$settings_file" ]; then
+		local temp_file="/tmp/settings_tmp_$$"
+		cp "$settings_file" "$temp_file"
+		if json_merge_deep "$temp_file" "$template_content"; then
+			add_change "skip" "$settings_file" "already configured" ""
+			rm -f "$temp_file"
+		else
+			local new_content=$(cat "$temp_file")
+			rm -f "$temp_file"
+			add_change "modify" "$settings_file" "$modify_desc" "$new_content"
+		fi
+	else
+		add_change "create" "$settings_file" "" "$template_content"
+	fi
+}
+
 plan_agents_md() {
 	if [ -f "AGENTS.md" ]; then
 		add_change "skip" "AGENTS.md" "already exists" ""
@@ -488,36 +468,18 @@ plan_agents_md() {
 }
 
 plan_gemini() {
-	if [ -f ".gemini/settings.json" ]; then
-		local has_value=$(json_has_value ".gemini/settings.json" "context.fileName" "AGENTS.md")
-		if [ "$has_value" = "true" ]; then
-			add_change "skip" ".gemini/settings.json" "already configured" ""
-		else
-			# Need to add AGENTS.md to context.fileName array
-			# Create modified version
-			local temp_file="/tmp/gemini_settings_tmp_$$"
-			cp ".gemini/settings.json" "$temp_file"
-			json_set "$temp_file" "context.fileName" '["AGENTS.md", "GEMINI.md"]'
-			local new_content=$(cat "$temp_file")
-			rm -f "$temp_file"
-
-			add_change "modify" ".gemini/settings.json" "add AGENTS.MD to context" "$new_content"
-		fi
-	else
-		# Create directory and file
-		add_change "create" ".gemini/settings.json" "" "$(template_gemini_settings)"
-	fi
+	plan_json \
+		".gemini/settings.json" \
+		"$(template_gemini_settings)" \
+		"add AGENTS.md to context"
 }
 
 plan_claude() {
-	# Always use SessionStart hook approach for proper AGENTS.md inheritance
-	if [ -f ".claude/settings.json" ]; then
-		add_change "skip" ".claude/settings.json" "needs manual update for hook" ""
-	else
-		add_change "create" ".claude/settings.json" "" "$(template_claude_settings)"
-	fi
+	plan_json \
+		".claude/settings.json" \
+		"$(template_claude_settings)" \
+		"add AGENTS.md hook"
 
-	# Always update the polyfill if content differs
 	local polyfill_path=".agents/polyfills/claude_agentsmd.sh"
 	local new_content="$(template_claude_hook)"
 
@@ -546,11 +508,9 @@ apply_changes() {
 
 		case "$type" in
 			create)
-				# Create parent directory if needed
 				local dir=$(dirname "$file")
 				[ "$dir" != "." ] && mkdir -p "$dir"
 
-				# Write content
 				cat "$content_file" > "$file"
 
 				# Make executable if it's a hook script
@@ -561,16 +521,12 @@ apply_changes() {
 				printf "$(c success ✓) Created $file\n"
 				;;
 			modify)
-				# Backup original
 				cp "$file" "${file}.backup.$(date +%s)"
-
-				# Write new content
 				cat "$content_file" > "$file"
 
 				printf "$(c success ✓) Modified $file\n"
 				;;
 			skip)
-				# Nothing to do
 				;;
 		esac
 
@@ -615,14 +571,12 @@ show_help() {
 # ============================================
 
 main() {
-	# Parse arguments
 	local auto_confirm=false
 	local dry_run=false
 	local project_dir="."
 	local agents=""
 	local positional_args=""
 
-	# First pass: collect flags and positional args
 	while [ $# -gt 0 ]; do
 		case "$1" in
 			-h|--help)
@@ -647,50 +601,41 @@ main() {
 		esac
 	done
 
-	# Parse positional arguments: [path] [agents...]
 	positional_args=$(trim "$positional_args")
 	if [ -n "$positional_args" ]; then
 		set -- $positional_args
 		local first_arg="$1"
 
-		# Check if first arg is a valid agent name
-		if is_supported_agent "$first_arg"; then
-			# It's an agent name - check for ambiguity
-				if [ -e "$first_arg" ]; then
+		if list_contains "$first_arg" "$SUPPORTED_AGENTS"; then
+			if [ -e "$first_arg" ]; then
 				panic 2 <<-end_panic
 					Ambiguous argument: $(c agent "'$first_arg'")
 					This is both a valid agent name AND an existing path.
 					Please rename the file/directory or use an explicit path like $(c path "'./$first_arg'")
 				end_panic
 			fi
-			# All args are agents
 			agents="$positional_args"
 		else
-				# First arg might be a path - validate it exists if it looks like a path
-				# Otherwise, treat as invalid agent name
-				if [ -e "$first_arg" ] || [ "$first_arg" = "." ] || [ "$first_arg" = ".." ] || echo "$first_arg" | grep -q "/"; then
-					# It's a path (exists or looks like a path with /)
+			case "$first_arg" in
+				*/*|.|..)
 					project_dir="$first_arg"
 					shift
-					# Remaining args are agents
 					agents="$*"
-			else
-				# Doesn't exist and doesn't look like a path - must be invalid agent
-				panic 2 "Unknown agent: $(c agent "'$first_arg'") (valid agents: $(c_list agent $SUPPORTED_AGENTS))"
-			fi
+					;;
+				*)
+					panic 2 "Unknown agent: $(c agent "'$first_arg'") (valid agents: $(c_list agent $SUPPORTED_AGENTS))"
+					;;
+			esac
 		fi
 	fi
 
-	# Determine which agents to enable
 	local enabled_agents=""
 
 	if [ -z "$agents" ]; then
-		# No agents specified - enable all
 		enabled_agents="$SUPPORTED_AGENTS"
 	else
-		# Enable only specified agents
 		for agent in $agents; do
-			if ! is_supported_agent "$agent"; then
+			if ! list_contains "$agent" "$SUPPORTED_AGENTS"; then
 				panic 2 "Unknown agent: $(c agent "'$agent'") (valid agents: $(c_list agent $SUPPORTED_AGENTS))"
 			fi
 			enabled_agents="$enabled_agents $agent"
@@ -698,35 +643,28 @@ main() {
 		enabled_agents=$(trim "$enabled_agents")
 	fi
 
-	# Check requirements
 	check_perl
 
-	# Change to project directory
 	cd "$project_dir" || panic 2 "Cannot access directory: $(c path "'$project_dir'")"
 
-	# Welcome
 	printf "\n$(c heading '=== AGENTS.md Polyfill Installer ===')\n"
 	printf "Version: $VERSION\n"
 	printf "Project: $(pwd)\n\n"
 
-	# Plan changes
 	plan_agents_md
 	for agent in $SUPPORTED_AGENTS; do
-		if is_enabled_agent "$agent" "$enabled_agents"; then
+		if list_contains "$agent" "$enabled_agents"; then
 			eval "plan_$agent"
 		fi
 	done
 
-	# Display ledger
 	display_ledger
 
-	# Dry run?
 	if [ "$dry_run" = true ]; then
 		printf "$(c warning 'Dry-run mode - no changes applied')\n\n"
 		exit 0
 	fi
 
-	# Confirm
 	if [ "$auto_confirm" = false ]; then
 		if ! ask_confirmation; then
 			printf "\n$(c warning 'Installation cancelled')\n\n"
@@ -734,11 +672,9 @@ main() {
 		fi
 	fi
 
-	# Apply changes
 	printf "\n$(c heading 'Applying changes...')\n\n"
 	apply_changes
 
-	# Success
 	printf "\n$(c success '✓ Installation complete!')\n\n"
 
 	printf "$(c heading 'Next steps:')\n"
