@@ -12,11 +12,11 @@ curl -fsSL https://raw.githubusercontent.com/agentsmd/universal-agents/main/inst
 
 Configures your installed AI coding agents with complete [AGENTS.md](https://agents.md) support:
 
-📄 **Auto-load**: Agents automatically read AGENTS.md files instead of (or in addition to) their proprietary formats
+📄 **Basic support**: Agents automatically read AGENTS.md files instead of (or in addition to) their proprietary formats
 
 🪺 **Nested**: Nested AGENTS.md files apply with proper precedence (closer = higher priority)
 
-🎯 **Scoped**: Only loads relevant AGENTS.md files, not all of them (essential for large monorepos)
+🎯 **Selective**: Only loads relevant AGENTS.md files, not all of them (essential for large monorepos)
 
 ### Native Support
 
@@ -24,9 +24,9 @@ Out of the box, most agents have incomplete or missing AGENTS.md support:
 
 | Feature | Claude Code | Cursor Agent | Gemini CLI |
 |---------|-------------|--------------|------------|
-| 📄 **Auto-load** | ❌ | ✅ [Root only](https://cursor.com/docs/context/rules) | ⚠️ [Configurable](https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html) |
+| 📄 **Basic support** | ❌ | ✅ [Root only](https://cursor.com/docs/context/rules) | ⚠️ [Configurable](https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html) |
 | 🪺 **Nested** | ❌ | ⚠️ [Broken](https://forum.cursor.com/t/nested-agents-md-files-not-being-loaded/138411) | ✅ |
-| 🎯 **Scoped** | ❌ | ❌ | ✅ |
+| 🎯 **Selective** | ❌ | ❌ | ✅ |
 
 ### How It Works
 
@@ -48,7 +48,7 @@ project/
 
 When working in `src/api/`, both AGENTS.md files apply - with the API-specific one taking precedence for conflicts (🪺 **nested**).
 
-Agents load context only for the directories you're working in, keeping token usage efficient even in large projects (🎯 **scoped**).
+Agents load context only for the directories you're working in, keeping token usage efficient even in large projects (🎯 **selective**).
 
 ## License
 
