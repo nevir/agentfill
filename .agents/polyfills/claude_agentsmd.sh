@@ -51,10 +51,12 @@ end_context
 
 # If there is a root AGENTS.md, load it now because it always applies.
 if [ -f "./AGENTS.md" ]; then
-  cat <<-end_root_context
-    The content of ./AGENTS.md is as follows:
-    <root_agentsmd>
-    $(cat "./AGENTS.md")
-    </root_agentsmd>
-  end_root_context
+cat <<-end_root_context
+
+The content of ./AGENTS.md is as follows:
+
+<root_agentsmd>
+$(cat "./AGENTS.md")
+</root_agentsmd>
+end_root_context
 fi
