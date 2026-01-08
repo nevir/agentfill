@@ -31,9 +31,9 @@ fi
 
 TOTAL_FAILED=0
 
-# Run install tests
-printf "$(c suite "▸ Install Script Tests")\n"
-"$SCRIPT_DIR/test-install.sh" $VERBOSE_FLAG
+# Run unit tests
+printf "$(c suite "▸ Unit Tests")\n"
+"$SCRIPT_DIR/test-unit.sh" $VERBOSE_FLAG
 if [ $? -ne 0 ]; then
 	TOTAL_FAILED=$((TOTAL_FAILED + 1))
 fi

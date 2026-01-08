@@ -4,7 +4,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 INSTALL_SCRIPT="$REPO_ROOT/install.sh"
-TESTS_DIR="$SCRIPT_DIR/install"
+TESTS_DIR="$SCRIPT_DIR/unit"
 
 # Load common libraries
 . "$SCRIPT_DIR/_common/colors.sh"
@@ -156,13 +156,46 @@ run_test() {
 }
 
 # ============================================
+# Test Discovery
+# ============================================
+
+discover_test_files() {
+	find "$TESTS_DIR" -type f -name "*.sh" | sort
+}
+
+load_test_suites() {
+	local test_file
+	for test_file in $(discover_test_files); do
+		. "$test_file"
+	done
+}
+
+discover_test_functions() {
+	local test_file
+	for test_file in $(discover_test_files); do
+		grep -E '^test_[a-zA-Z0-9_]+\(\)' "$test_file" | sed 's/().*$//' || true
+	done
+}
+
+get_suite_name() {
+	local test_file="$1"
+	local suite_name
+
+	# Remove TESTS_DIR prefix and .sh suffix
+	suite_name="${test_file#$TESTS_DIR/}"
+	suite_name="${suite_name%.sh}"
+
+	# Convert path separators to colons for nested tests
+	suite_name="$(echo "$suite_name" | tr '/' ':')"
+
+	echo "$suite_name"
+}
+
+# ============================================
 # Load Test Suites
 # ============================================
 
-. "$TESTS_DIR/fresh-install.sh"
-. "$TESTS_DIR/idempotency.sh"
-. "$TESTS_DIR/merging.sh"
-. "$TESTS_DIR/special-cases.sh"
+load_test_suites
 
 # ============================================
 # Main
@@ -183,28 +216,32 @@ main() {
 
 	printf "\n"
 
-	print_section_header "fresh-install"
-	run_test "fresh-install-all-agents" test_fresh_install_all_agents
-	run_test "fresh-install-claude-only" test_fresh_install_claude_only
-	run_test "fresh-install-gemini-only" test_fresh_install_gemini_only
-	printf "\n"
+	# Build a map of suite -> tests
+	local current_suite=""
+	local test_file
+	local test_func
 
-	print_section_header "idempotency"
-	run_test "idempotent-rerun" test_idempotent_rerun
-	run_test "skip-when-already-configured" test_skip_when_already_configured
-	run_test "existing-agents-md-preserved" test_existing_agents_md_preserved
-	printf "\n"
+	for test_file in $(discover_test_files); do
+		local suite_name=$(get_suite_name "$test_file")
 
-	print_section_header "merging"
-	run_test "merge-claude-existing-permissions" test_merge_claude_existing_permissions
-	run_test "merge-gemini-existing-context" test_merge_gemini_existing_context
-	printf "\n"
+		# Print suite header when we encounter a new suite
+		if [ "$suite_name" != "$current_suite" ]; then
+			if [ -n "$current_suite" ]; then
+				printf "\n"
+			fi
+			print_section_header "$suite_name"
+			current_suite="$suite_name"
+		fi
 
-	print_section_header "special-cases"
-	run_test "polyfill-update" test_polyfill_update
-	run_test "dry-run-no-changes" test_dry_run_no_changes
-	printf "\n"
+		# Run all test functions from this file
+		for test_func in $(grep -E '^test_[a-zA-Z0-9_]+\(\)' "$test_file" | sed 's/().*$//' || true); do
+			# Convert test_function_name to test-name
+			local test_name=$(echo "$test_func" | sed 's/^test_//' | tr '_' '-')
+			run_test "$test_name" "$test_func"
+		done
+	done
 
+	printf "\n"
 	printf "$(c success %d/%d passed)\n" "$PASS_COUNT" "$TEST_COUNT"
 	printf "\n"
 
