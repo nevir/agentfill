@@ -22,3 +22,24 @@ jobs:
       - name: Run unit tests
         run: ./tests/test-unit.sh
         shell: sh
+
+  install-check:
+    name: Install Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run install.sh all
+        run: ./install.sh -y all
+        shell: sh
+
+      - name: Check for uncommitted changes
+        run: |
+          if ! git diff --exit-code; then
+            echo "Error: install.sh all produced uncommitted changes"
+            echo "Please run './install.sh -y all' and commit the changes"
+            exit 1
+          fi
+        shell: sh
