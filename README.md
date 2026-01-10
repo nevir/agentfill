@@ -1,6 +1,6 @@
 # Universal AGENTS.md Support
 
-One install script. Full-featured [AGENTS.md](https://agents.md) support for all your AI coding agents.
+One install script. Standardized [AGENTS.md](https://agents.md) configuration across Claude Code, Cursor, and Gemini.
 
 ## Installation
 
@@ -10,7 +10,7 @@ curl -fsSL https://raw.githubusercontent.com/agentsmd/universal-agents/main/inst
 
 ## What This Does
 
-Configures your installed AI coding agents with complete [AGENTS.md](https://agents.md) support:
+Brings full-featured [AGENTS.md](https://agents.md) support to major AI coding agents. Most agents have incomplete or broken support natively - this fixes that:
 
 📄 **Basic support**: Agents automatically read AGENTS.md files instead of (or in addition to) their proprietary formats
 
