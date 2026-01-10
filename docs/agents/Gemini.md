@@ -1,4 +1,8 @@
-# Gemini CLI Configuration
+# Gemini CLI
+
+## Overview
+
+Gemini CLI is Google's command-line interface for Gemini. It features a comprehensive hooks system, native Agent Skills support (experimental), and a robust extension system for extensibility.
 
 ## Configuration File Locations
 
@@ -66,12 +70,221 @@ String values in `settings.json` can reference environment variables:
 
 The documented hierarchy only includes the four tiers listed above. Unlike Claude Code, there is no auto-merging of `.local.json` variants.
 
+## Hooks System
+
+Gemini CLI has a comprehensive hooks system with many lifecycle events.
+
+### Available Hook Events
+
+| Event | Purpose |
+|-------|---------|
+| `SessionStart` | When a session begins - initialize resources |
+| `SessionEnd` | When a session ends - cleanup |
+| `BeforeAgent` | After user input, before planning |
+| `AfterAgent` | When agent loop concludes |
+| `BeforeModel` | Before sending request to LLM |
+| `AfterModel` | After receiving LLM response |
+| `BeforeToolSelection` | Before tool selection |
+| `BeforeTool` | Before a tool executes |
+| `AfterTool` | After a tool executes |
+| `PreCompress` | Before context compression |
+| `Notification` | When notifications occur |
+
+### Hook Configuration
+
+Hooks can be configured in `settings.json` or within extensions:
+
+```json
+// .gemini/settings.json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "sh -c 'mkdir -p .gemini && ln -sf ../.agents/skills .gemini/skills 2>/dev/null || true'"
+      }
+    ]
+  }
+}
+```
+
+For extensions, hooks are defined in `hooks/hooks.json`:
+
+```json
+// hooks/hooks.json (within extension directory)
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node ${extensionPath}/setup.js",
+        "name": "Setup Skills Symlink"
+      }
+    ]
+  }
+}
+```
+
+**Note**: Hooks are defined in `hooks/hooks.json`, NOT in `gemini-extension.json`.
+
+### Self-Contained Integration
+
+Gemini CLI can be fully self-contained via SessionStart hooks that auto-create symlinks for skill directories.
+
+## Skills System
+
+Gemini CLI added Agent Skills support in **v0.23.0** as an experimental feature, based on the [Agent Skills specification](https://agentskills.io).
+
+### Enabling Skills
+
+Skills are **disabled by default**. Enable via:
+- `experimental.skills: true` in `~/.gemini/settings.json`
+- Toggle in `/settings` interactive UI (search for "Skills")
+
+### Skill Locations
+
+Three discovery tiers with precedence (Project > User > Extension):
+
+| Location | Path | Scope |
+|----------|------|-------|
+| Project Skills | `.gemini/skills/` | Version-controlled, team-shared |
+| User Skills | `~/.gemini/skills/` | Personal, cross-project |
+| Extension Skills | Within installed extensions | Extension-bundled |
+
+### SKILL.md Format
+
+```yaml
+---
+name: skill-name
+description: Description of what this skill does
+---
+
+# Skill Instructions
+Markdown body with procedural guidance...
+```
+
+### Skill Discovery and Activation
+
+1. System scans enabled skills at session start
+2. Only **metadata** (name/description) is initially loaded (~100 tokens)
+3. Model autonomously identifies relevant skills based on task
+4. Model calls `activate_skill` tool
+5. User receives confirmation prompt (name, purpose, directory path)
+6. Upon approval: full SKILL.md content loaded into conversation
+7. Skill directory granted as allowed file path for asset access
+
+### Management Commands
+
+- `/skills list` - View discovered skills
+- `/skills enable/disable <name>` - Toggle skill usage
+- `/skills reload` - Refresh skill discovery
+
+## Extension System
+
+Gemini CLI has a robust extension system using `gemini-extension.json` manifests.
+
+### Extension Structure
+
+```
+my-extension/
+├── gemini-extension.json    # Manifest
+├── hooks/
+│   └── hooks.json           # Hook definitions
+├── GEMINI.md                # Context file
+└── scripts/                 # Optional scripts
+```
+
+### gemini-extension.json Fields
+
+- `name`: Extension identifier
+- `version`: Version number
+- `mcpServers`: MCP server configurations
+- `contextFileName`: Context file (defaults to GEMINI.md)
+- `excludeTools`: Tools to block
+- `settings`: User-configurable options
+
+### Extension Installation
+
+```bash
+# From GitHub
+gemini extensions install https://github.com/user/repo
+
+# From local path
+gemini extensions install /path/to/extension
+
+# Development linking (symlink-based)
+gemini extensions link /path/to/dev/extension
+```
+
+### Skills via Extension
+
+The [gemini-cli-skillz](https://github.com/intellectronica/gemini-cli-skillz) extension allows custom skill directories:
+
+```json
+// ~/.gemini/extensions/skillz/gemini-extension.json
+{
+  "mcpServers": {
+    "skillz": {
+      "command": "uvx",
+      "args": [
+        "skillz@latest",
+        "/absolute/path/to/your/skills",
+        "--verbose"
+      ]
+    }
+  }
+}
+```
+
+This allows sharing the same skills directory between Claude Code and Gemini CLI without copying files.
+
+## GEMINI.md Context Files
+
+Gemini supports context files similar to CLAUDE.md:
+
+| Location | Scope |
+|----------|-------|
+| `~/.gemini/GEMINI.md` | Global, all projects |
+| `./GEMINI.md` + parent directories | Project-level |
+| Subdirectory GEMINI.md files | Module-specific |
+
+### Custom Filename Support
+
+Configure custom context filenames via `context.fileName`:
+
+```json
+{
+  "context": {
+    "fileName": ["AGENTS.md", "CONTEXT.md", "GEMINI.md"]
+  }
+}
+```
+
+### Import Syntax
+
+Supports `@path/to/file.md` for modular context.
+
 ## AGENTS.md Integration
 
 The universal-agents install script configures Gemini CLI to load AGENTS.md files via the `context.fileName` setting, which tells Gemini to automatically include these files in the conversation context.
 
+### Skills Integration
+
+Universal-agents creates a symlink from `.gemini/skills/` to `.agents/skills/`, enabling:
+- Shared skills directory across all configured agents
+- Native Gemini CLI skill discovery (requires `experimental.skills: true`)
+
+**Note**: Gemini CLI skills are experimental and must be explicitly enabled in settings.
+
 ## Sources
 
 - [Gemini CLI Configuration Documentation](https://geminicli.com/docs/get-started/configuration/)
+- [Agent Skills | Gemini CLI](https://geminicli.com/docs/cli/skills/)
+- [Gemini CLI Hooks](https://geminicli.com/docs/hooks/)
+- [Gemini CLI Extensions](https://geminicli.com/docs/extensions/)
+- [Getting Started with Extensions](https://geminicli.com/docs/extensions/getting-started-extensions/)
+- [GEMINI.md Files](https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html)
+- [gemini-cli-skillz Extension](https://github.com/intellectronica/gemini-cli-skillz)
+- [Hooks System | DeepWiki](https://deepwiki.com/google-gemini/gemini-cli/3.10-hooks-system)
 - [GitHub Configuration Guide](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/configuration.md)
 - [Tutorial: Configuration Settings](https://medium.com/google-cloud/gemini-cli-tutorial-series-part-3-configuration-settings-via-settings-json-and-env-files-669c6ab6fd44)

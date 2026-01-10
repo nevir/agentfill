@@ -4,7 +4,7 @@ test_polyfill_update() {
 
 	run_install "$project_dir" -y . claude
 
-	local polyfill=".agents/polyfills/claude_agentsmd.sh"
+	local polyfill=".agents/polyfills/claude/agentsmd.sh"
 	echo "# old version" > "$polyfill"
 
 	local output=$(run_install "$project_dir" -y -n . claude 2>&1)

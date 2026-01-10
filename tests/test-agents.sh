@@ -101,7 +101,7 @@ run_test() {
 	if [ "$mode" = "global" ]; then
 		[ -f "$HOME/.claude/settings.json" ] && claude_backup=$(cat "$HOME/.claude/settings.json")
 		[ -f "$HOME/.gemini/settings.json" ] && gemini_backup=$(cat "$HOME/.gemini/settings.json")
-		[ -f "$HOME/.agents/polyfills/claude_agentsmd.sh" ] && polyfill_backup=$(cat "$HOME/.agents/polyfills/claude_agentsmd.sh")
+		[ -f "$HOME/.agents/polyfills/claude/agentsmd.sh" ] && polyfill_backup=$(cat "$HOME/.agents/polyfills/claude/agentsmd.sh")
 	fi
 
 	# Change to temp dir and run install
@@ -189,9 +189,9 @@ run_test() {
 		fi
 		if [ -n "$polyfill_backup" ]; then
 			mkdir -p "$HOME/.agents/polyfills"
-			echo "$polyfill_backup" > "$HOME/.agents/polyfills/claude_agentsmd.sh"
+			echo "$polyfill_backup" > "$HOME/.agents/polyfills/claude/agentsmd.sh"
 		else
-			rm -f "$HOME/.agents/polyfills/claude_agentsmd.sh"
+			rm -f "$HOME/.agents/polyfills/claude/agentsmd.sh"
 		fi
 	fi
 

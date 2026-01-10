@@ -19,7 +19,13 @@ docs/
 ## Documentation
 
 ### Project Overview
-- **[Comparison with Similar Projects](Comparison.md)** - Analysis of universal-agents vs Ruler, OpenSkills, and other approaches
+
+- **[Comparison with Similar Projects](Comparison.md)** - Comprehensive analysis comparing universal-agents with similar projects and standards:
+  - **Configuration Management Tools**: Ruler, OpenSkills, Symlinks, Codebase Context Specification
+  - **Standards & Protocols**: AGENTS.md standard, MCP (Model Context Protocol), Agent2Agent, .aiignore
+  - **Agent-Specific Systems**: Detailed coverage of 10+ coding agents (Continue.dev, Windsurf, Cline, Tabnine, Copilot, Replit Agent, OpenHands, Cody)
+  - **Context Engineering**: Security considerations, best practices, and tooling
+  - **Industry Trends**: Standardization efforts, emerging patterns, Linux Foundation initiatives
 
 ### Agent Documentation
 

@@ -102,6 +102,18 @@ polyfill_dir() {
 	esac
 }
 
+# Map agent name to skills directory path
+agent_skills_dir() {
+	local agent="$1"
+	case "$agent" in
+		claude)  echo ".claude/skills" ;;
+		gemini)  echo ".gemini/skills" ;;
+		codex)   echo ".codex/skills" ;;
+		cursor)  echo ".cursor/skills" ;;
+		copilot) echo ".github/skills" ;;
+	esac
+}
+
 # Get polyfill reference path for settings.json
 polyfill_reference_path() {
 	local script_name="$1"
@@ -150,6 +162,52 @@ check_perl() {
 
 	if ! perl -MJSON::PP -e 1 2>/dev/null; then
 		panic 2 "Perl JSON::PP module is required but not found."
+	fi
+}
+
+detect_installed_agents() {
+	local installed=""
+	for agent in $SUPPORTED_AGENTS; do
+		if command -v "$agent" >/dev/null 2>&1; then
+			installed="$installed $agent"
+		fi
+	done
+	trim "$installed"
+}
+
+prompt_agent_selection() {
+	printf "\n$(c heading 'Select agents to configure:')\n\n"
+	printf "  $(c agent claude)   - Claude Code\n"
+	printf "  $(c agent gemini)   - Gemini CLI\n"
+	printf "\n"
+	printf "Enter agent names (space-separated), or $(c option all) for all: "
+	read -r response
+
+	response=$(trim "$response")
+	case "$response" in
+		""|all|All|ALL) echo "$SUPPORTED_AGENTS" ;;
+		*)              echo "$response" ;;
+	esac
+}
+
+select_agents() {
+	local installed
+	installed=$(detect_installed_agents)
+
+	if [ -n "$installed" ]; then
+		printf "\n$(c heading 'Detected installed agents:') $(c_list agent $installed)\n\n"
+		printf "Install for these agents? [Y/n/select]: "
+		read -r confirm
+
+		confirm=$(trim "$confirm")
+		case "$confirm" in
+			""|[yY]|[yY][eE][sS]) echo "$installed" ;;
+			[nN]|[nN][oO])        exit 0 ;;
+			*)                    prompt_agent_selection ;;
+		esac
+	else
+		printf "\n$(c warning 'No supported agents detected on this system.')\n"
+		prompt_agent_selection
 	fi
 }
 
@@ -261,38 +319,126 @@ yaml_add_item() {
 }
 
 # ============================================
+# Skills symlinks (project install only)
+# ============================================
+
+# Create skills symlink for an agent
+# Only called in project mode; global mode uses hooks instead (Task 04)
+create_skills_symlink() {
+	local agent="$1"
+	local target
+	target=$(agent_skills_dir "$agent")
+
+	# Only create symlinks if .agents/skills/ exists
+	[ -d ".agents/skills" ] || return 0
+
+	# Skip if agent has no skills directory mapping
+	[ -n "$target" ] || return 0
+
+	# Safety: don't overwrite existing non-symlink (user's skills)
+	if [ -e "$target" ] && [ ! -L "$target" ]; then
+		printf "$(c warning Warning:) $(c path "$target") exists and is not a symlink. Skipping.\n" >&2
+		printf "  Move your skills to $(c path ".agents/skills/") to use universal skills.\n" >&2
+		return 0
+	fi
+
+	# Skip if symlink already points to correct target
+	if [ -L "$target" ]; then
+		local current
+		current=$(readlink "$target")
+		if [ "$current" = "../.agents/skills" ]; then
+			return 0
+		fi
+		# Wrong target - remove and recreate
+		rm "$target"
+	fi
+
+	# Create parent directory and symlink
+	mkdir -p "$(dirname "$target")"
+	ln -s "../.agents/skills" "$target"
+	printf "$(c success Created:) $(c path "$target") -> $(c path "../.agents/skills")\n"
+}
+
+# ============================================
 # File templates
 # ============================================
 
 template_gemini_settings() {
-	cat <<-'end_template'
-		{
-		  "context": {
-		    "fileName": ["AGENTS.md", "GEMINI.md"]
-		  }
-		}
-	end_template
+	# Global mode includes the skills hook
+	if [ "$INSTALL_MODE" = "global" ]; then
+		local skills_hook_path="$(polyfill_dir)/gemini/skills.sh"
+		cat <<-end_template
+			{
+			  "context": {
+			    "fileName": ["AGENTS.md", "GEMINI.md"]
+			  },
+			  "hooks": {
+			    "SessionStart": [
+			      {
+			        "type": "command",
+			        "command": "$skills_hook_path"
+			      }
+			    ]
+			  }
+			}
+		end_template
+	else
+		cat <<-'end_template'
+			{
+			  "context": {
+			    "fileName": ["AGENTS.md", "GEMINI.md"]
+			  }
+			}
+		end_template
+	fi
 }
 
 template_claude_settings() {
-	local polyfill_path=$(polyfill_reference_path "claude_agentsmd.sh")
-	cat <<-end_template
-		{
-		  "hooks": {
-		    "SessionStart": [
-		      {
-		        "matcher": "startup",
-		        "hooks": [
-		          {
-		            "type": "command",
-		            "command": "$polyfill_path"
-		          }
-		        ]
-		      }
-		    ]
-		  }
-		}
-	end_template
+	local polyfill_path=$(polyfill_reference_path "claude/agentsmd.sh")
+
+	# Global mode also includes the skills hook
+	if [ "$INSTALL_MODE" = "global" ]; then
+		local skills_hook_path=$(polyfill_reference_path "claude/skills.sh")
+		cat <<-end_template
+			{
+			  "hooks": {
+			    "SessionStart": [
+			      {
+			        "matcher": "startup",
+			        "hooks": [
+			          {
+			            "type": "command",
+			            "command": "$polyfill_path"
+			          },
+			          {
+			            "type": "command",
+			            "command": "$skills_hook_path"
+			          }
+			        ]
+			      }
+			    ]
+			  }
+			}
+		end_template
+	else
+		cat <<-end_template
+			{
+			  "hooks": {
+			    "SessionStart": [
+			      {
+			        "matcher": "startup",
+			        "hooks": [
+			          {
+			            "type": "command",
+			            "command": "$polyfill_path"
+			          }
+			        ]
+			      }
+			    ]
+			  }
+			}
+		end_template
+	fi
 }
 
 template_claude_hook() {
@@ -359,6 +505,92 @@ template_claude_hook() {
 				</root_agentsmd>
 			end_root_context
 		fi
+	end_template
+}
+
+template_claude_skills_hook() {
+	cat <<-'end_template'
+		#!/bin/sh
+
+		# Skills symlink hook for Claude (global install)
+		# Creates symlinks to .agents/skills/ on-demand per project
+
+		PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
+		TARGET="$PROJECT_DIR/.claude/skills"
+
+		# Check for skills source: project skills first, then global skills
+		if [ -d "$PROJECT_DIR/.agents/skills" ]; then
+			SOURCE="../.agents/skills"
+		elif [ -d "$HOME/.agents/skills" ]; then
+			SOURCE="$HOME/.agents/skills"
+		else
+			exit 0
+		fi
+
+		# Safety: existing non-symlink directory - warn and skip
+		if [ -e "$TARGET" ] && [ ! -L "$TARGET" ]; then
+			echo "Warning: $TARGET exists and is not a symlink. Move skills to .agents/skills/ to use universal skills." >&2
+			exit 0
+		fi
+
+		# Already a symlink - nothing to do
+		if [ -L "$TARGET" ]; then
+			exit 0
+		fi
+
+		# Create symlink
+		mkdir -p "$PROJECT_DIR/.claude"
+		ln -s "$SOURCE" "$TARGET"
+
+		# Instruct user to restart (skills discovered before hook runs)
+		cat <<-end_message
+		<skills_setup>
+		Skills symlink created. Please restart Claude to discover skills in this project.
+		</skills_setup>
+		end_message
+	end_template
+}
+
+template_gemini_skills_hook() {
+	cat <<-'end_template'
+		#!/bin/sh
+
+		# Skills symlink hook for Gemini (global install)
+		# Creates symlinks to .agents/skills/ on-demand per project
+
+		PROJECT_DIR="${GEMINI_PROJECT_DIR:-.}"
+		TARGET="$PROJECT_DIR/.gemini/skills"
+
+		# Check for skills source: project skills first, then global skills
+		if [ -d "$PROJECT_DIR/.agents/skills" ]; then
+			SOURCE="../.agents/skills"
+		elif [ -d "$HOME/.agents/skills" ]; then
+			SOURCE="$HOME/.agents/skills"
+		else
+			exit 0
+		fi
+
+		# Safety: existing non-symlink directory - warn and skip
+		if [ -e "$TARGET" ] && [ ! -L "$TARGET" ]; then
+			echo "Warning: $TARGET exists and is not a symlink. Move skills to .agents/skills/ to use universal skills." >&2
+			exit 0
+		fi
+
+		# Already a symlink - nothing to do
+		if [ -L "$TARGET" ]; then
+			exit 0
+		fi
+
+		# Create symlink
+		mkdir -p "$PROJECT_DIR/.gemini"
+		ln -s "$SOURCE" "$TARGET"
+
+		# Instruct user to restart (skills discovered before hook runs)
+		cat <<-end_message
+		<skills_setup>
+		Skills symlink created. Please restart Gemini to discover skills in this project.
+		</skills_setup>
+		end_message
 	end_template
 }
 
@@ -490,6 +722,23 @@ plan_gemini() {
 		"$(gemini_settings_path)" \
 		"$(template_gemini_settings)" \
 		"add AGENTS.md to context"
+
+	# Global mode: plan the skills hook script
+	if [ "$INSTALL_MODE" = "global" ]; then
+		local skills_hook_path="$(polyfill_dir)/gemini/skills.sh"
+		local skills_content="$(template_gemini_skills_hook)"
+
+		if [ -f "$skills_hook_path" ]; then
+			local current_skills_content="$(cat "$skills_hook_path")"
+			if [ "$current_skills_content" = "$skills_content" ]; then
+				add_change "skip" "$skills_hook_path" "already up to date" ""
+			else
+				add_change "modify" "$skills_hook_path" "update to latest version" "$skills_content"
+			fi
+		else
+			add_change "create" "$skills_hook_path" "" "$skills_content"
+		fi
+	fi
 }
 
 plan_claude() {
@@ -498,7 +747,8 @@ plan_claude() {
 		"$(template_claude_settings)" \
 		"add AGENTS.md hook"
 
-	local polyfill_path="$(polyfill_dir)/claude_agentsmd.sh"
+	# Plan the AGENTS.md hook script
+	local polyfill_path="$(polyfill_dir)/claude/agentsmd.sh"
 	local new_content="$(template_claude_hook)"
 
 	if [ -f "$polyfill_path" ]; then
@@ -510,6 +760,23 @@ plan_claude() {
 		fi
 	else
 		add_change "create" "$polyfill_path" "" "$new_content"
+	fi
+
+	# Global mode: also plan the skills hook script
+	if [ "$INSTALL_MODE" = "global" ]; then
+		local skills_hook_path="$(polyfill_dir)/claude/skills.sh"
+		local skills_content="$(template_claude_skills_hook)"
+
+		if [ -f "$skills_hook_path" ]; then
+			local current_skills_content="$(cat "$skills_hook_path")"
+			if [ "$current_skills_content" = "$skills_content" ]; then
+				add_change "skip" "$skills_hook_path" "already up to date" ""
+			else
+				add_change "modify" "$skills_hook_path" "update to latest version" "$skills_content"
+			fi
+		else
+			add_change "create" "$skills_hook_path" "" "$skills_content"
+		fi
 	fi
 }
 
@@ -567,23 +834,25 @@ show_help() {
 
 	printf "$(c heading Arguments:)\n"
 	printf "  $(c path PATH)             Project directory (default: current directory)\n"
-	printf "  $(c agent AGENTS...)        Agent names to configure (default: all)\n"
-	printf "                   Valid agents: $(c_list agent $SUPPORTED_AGENTS)\n\n"
+	printf "  $(c agent AGENTS...)        Agent names to configure\n"
+	printf "                   Valid agents: $(c_list agent $SUPPORTED_AGENTS)\n"
+	printf "                   If omitted, auto-detects installed agents\n\n"
 
 	printf "$(c heading Options:)\n"
 	printf "  $(c flag -h), $(c flag --help)       Show this help message\n"
-	printf "  $(c flag -y), $(c flag --yes)        Auto-confirm (skip confirmation prompt)\n"
+	printf "  $(c flag -y), $(c flag --yes)        Auto-confirm (skip prompts, use all agents)\n"
 	printf "  $(c flag -n), $(c flag --dry-run)    Show plan only, don't apply changes\n"
 	printf "  $(c flag --global)            Install to user home directory (~/.claude/)\n\n"
 
 	printf "$(c heading Examples:)\n"
-	printf "  install.sh                      # All agents, project mode (default)\n"
-	printf "  install.sh $(c flag --global)             # All agents, global mode (user home)\n"
+	printf "  install.sh                      # Auto-detect agents, interactive mode\n"
 	printf "  install.sh $(c agent claude)               # Only Claude, project mode\n"
+	printf "  install.sh $(c agent claude) $(c agent gemini)        # Multiple agents\n"
+	printf "  install.sh $(c flag --global)             # Global mode (user home)\n"
 	printf "  install.sh $(c flag --global) $(c agent claude)      # Claude only, global mode\n"
-	printf "  install.sh $(c path /path/to/project)     # All agents, specific directory\n"
-	printf "  install.sh $(c flag -y)                   # Auto-confirm, project mode\n"
-	printf "  install.sh $(c flag -n)                   # Dry-run, project mode\n\n"
+	printf "  install.sh $(c path /path/to/project)     # Specific directory\n"
+	printf "  install.sh $(c flag -y)                   # Auto-confirm, all agents\n"
+	printf "  install.sh $(c flag -n)                   # Dry-run mode\n\n"
 }
 
 # ============================================
@@ -656,8 +925,16 @@ main() {
 	local enabled_agents=""
 
 	if [ -z "$agents" ]; then
-		enabled_agents="$SUPPORTED_AGENTS"
+		# No agents specified - use interactive selection if available
+		if [ "$auto_confirm" = false ] && [ -t 0 ]; then
+			enabled_agents=$(select_agents)
+			enabled_agents=$(trim "$enabled_agents")
+		else
+			# Non-interactive mode: use all supported agents
+			enabled_agents="$SUPPORTED_AGENTS"
+		fi
 	else
+		# Agents specified on command line
 		for agent in $agents; do
 			if ! list_contains "$agent" "$SUPPORTED_AGENTS"; then
 				panic 2 "Unknown agent: $(c agent "'$agent'") (valid agents: $(c_list agent $SUPPORTED_AGENTS))"
@@ -666,6 +943,13 @@ main() {
 		done
 		enabled_agents=$(trim "$enabled_agents")
 	fi
+
+	# Validate the selected agents
+	for agent in $enabled_agents; do
+		if ! list_contains "$agent" "$SUPPORTED_AGENTS"; then
+			panic 2 "Unknown agent: $(c agent "'$agent'") (valid agents: $(c_list agent $SUPPORTED_AGENTS))"
+		fi
+	done
 
 	check_perl
 
@@ -720,6 +1004,15 @@ main() {
 
 	printf "\n$(c heading 'Applying changes...')\n\n"
 	apply_changes
+
+	# Create skills symlinks (project mode only)
+	if [ "$INSTALL_MODE" = "project" ]; then
+		for agent in $SUPPORTED_AGENTS; do
+			if list_contains "$agent" "$enabled_agents"; then
+				create_skills_symlink "$agent"
+			fi
+		done
+	fi
 
 	printf "\n$(c success '✓ Installation complete!')\n\n"
 	printf "$(c heading 'Next steps:')\n"

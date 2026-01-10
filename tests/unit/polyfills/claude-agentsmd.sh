@@ -4,7 +4,7 @@ test_no_agentsmd_files() {
 
 	# Run the polyfill script with no AGENTS.md files
 	local output
-	output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude_agentsmd.sh")
+	output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude/agentsmd.sh")
 	local exit_code=$?
 
 	# Should exit with 0 and produce no output
@@ -23,7 +23,7 @@ test_single_root_agentsmd() {
 
 	# Run the polyfill script
 	local output
-	output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude_agentsmd.sh")
+	output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude/agentsmd.sh")
 
 	# Should output the instructions and root content
 	echo "$output" | grep -q "<agentsmd_instructions>" &&
@@ -54,7 +54,7 @@ test_multiple_nested_agentsmd() {
 
 	# Run the polyfill script
 	local output
-	output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude_agentsmd.sh")
+	output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude/agentsmd.sh")
 
 	# Should list all AGENTS.md files
 	echo "$output" | grep -q "<available_agentsmd_files>" &&
@@ -77,7 +77,7 @@ test_nested_agentsmd_without_root() {
 
 	# Run the polyfill script
 	local output
-	output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude_agentsmd.sh")
+	output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude/agentsmd.sh")
 
 	# Should list the subfolder file
 	echo "$output" | grep -q "<available_agentsmd_files>" &&
@@ -96,7 +96,7 @@ test_output_format_structure() {
 
 	# Run the polyfill script
 	local output
-	output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude_agentsmd.sh")
+	output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude/agentsmd.sh")
 
 	# Verify complete XML-like structure
 	echo "$output" | grep -q "<agentsmd_instructions>" &&
@@ -123,7 +123,7 @@ test_special_characters_in_agentsmd() {
 
 	# Run the polyfill script
 	local output
-	output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude_agentsmd.sh")
+	output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude/agentsmd.sh")
 
 	# Should preserve special characters
 	echo "$output" | grep -q '`backticks`' &&
@@ -141,7 +141,7 @@ test_empty_agentsmd_file() {
 
 	# Run the polyfill script
 	local output
-	output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude_agentsmd.sh")
+	output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude/agentsmd.sh")
 
 	# Should still run successfully and include the file
 	echo "$output" | grep -q "<available_agentsmd_files>" &&

@@ -83,7 +83,7 @@ assert_file_not_exists ".gemini/settings.json"
 Verify a file contains a pattern (uses `grep -q`).
 
 ```sh
-assert_file_contains ".claude/settings.json" "claude_agentsmd.sh"
+assert_file_contains ".claude/settings.json" "claude/agentsmd.sh"
 assert_file_contains "AGENTS.md" "My custom instructions"
 ```
 
@@ -365,7 +365,7 @@ EOF
 run_install "$project_dir" -y . claude
 
 assert_file_contains ".claude/settings.json" "npm" &&
-assert_file_contains ".claude/settings.json" "claude_agentsmd.sh"
+assert_file_contains ".claude/settings.json" "claude/agentsmd.sh"
 ```
 
 ### Testing Polyfill Scripts
@@ -376,7 +376,7 @@ cat > "$project_dir/AGENTS.md" <<-end_agentsmd
 end_agentsmd
 
 local output
-output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude_agentsmd.sh")
+output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude/agentsmd.sh")
 
 echo "$output" | grep -q "<root_agentsmd>" &&
 echo "$output" | grep -q "# Test Content"
