@@ -1,6 +1,6 @@
 # Universal Agents
 
-One install script. Standardized and centralized [AGENTS.md](https://agents.md) configuration and [Agent Skills](https://agentskills.io) support across major AI agents.
+A "polyfill" that standardizes and centralizes [AGENTS.md](https://agents.md) configuration and [Agent Skills](https://agentskills.io) support within your repository.
 
 ## Installation
 
