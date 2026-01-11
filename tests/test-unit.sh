@@ -77,6 +77,26 @@ assert_file_contains() {
 	fi
 }
 
+assert_file_not_contains() {
+	local file="$1"
+	local pattern="$2"
+	local desc="${3:-File should not contain pattern: $pattern}"
+
+	if [ ! -f "$file" ]; then
+		echo "$(c error "✗ $desc")"
+		echo "  File not found: $file"
+		return 1
+	fi
+
+	if grep -q "$pattern" "$file"; then
+		echo "$(c error "✗ $desc")"
+		echo "  Pattern unexpectedly found in $file: $pattern"
+		return 1
+	else
+		return 0
+	fi
+}
+
 assert_json_has_key() {
 	local file="$1"
 	local key="$2"

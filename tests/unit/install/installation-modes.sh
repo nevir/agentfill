@@ -142,3 +142,42 @@ test_default_mode_polyfill_reference() {
 	# Polyfill should reference project directory path
 	assert_file_contains ".claude/settings.json" "\$CLAUDE_PROJECT_DIR/.agents/polyfills/claude/agentsmd.sh"
 }
+
+test_config_level_creates_settings_only() {
+	local project_dir="$1"
+
+	run_install "$project_dir" -y --level config claude
+
+	# Should create settings.json but not polyfill scripts
+	assert_file_exists ".claude/settings.json" &&
+	assert_file_not_exists ".agents/polyfills/claude/agentsmd.sh"
+}
+
+test_config_level_settings_has_no_hooks() {
+	local project_dir="$1"
+
+	run_install "$project_dir" -y --level config claude
+
+	# Settings should NOT contain hooks
+	assert_file_not_contains ".claude/settings.json" "hooks"
+}
+
+test_config_level_gemini_has_context() {
+	local project_dir="$1"
+
+	run_install "$project_dir" -y --level config gemini
+
+	# Gemini settings should have context.fileName
+	assert_file_contains ".gemini/settings.json" "AGENTS.md"
+}
+
+test_full_level_creates_polyfills() {
+	local project_dir="$1"
+
+	run_install "$project_dir" -y --level full claude
+
+	# Should create both settings.json and polyfill scripts
+	assert_file_exists ".claude/settings.json" &&
+	assert_file_exists ".agents/polyfills/claude/agentsmd.sh" &&
+	assert_file_contains ".claude/settings.json" "hooks"
+}

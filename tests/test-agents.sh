@@ -104,9 +104,13 @@ run_test() {
 		[ -f "$HOME/.agents/polyfills/claude/agentsmd.sh" ] && polyfill_backup=$(cat "$HOME/.agents/polyfills/claude/agentsmd.sh")
 	fi
 
-	# Change to temp dir and run install
+	# Change to temp dir and run install (unless level is "none")
 	cd "$temp_dir"
-	"$REPO_ROOT/install.sh" -y $([ "$mode" = "global" ] && echo "--global" || echo "") > /dev/null 2>&1
+	if [ "$INSTALL_LEVEL" != "none" ]; then
+		local install_flags="-y --level $INSTALL_LEVEL"
+		[ "$mode" = "global" ] && install_flags="$install_flags --global"
+		"$REPO_ROOT/install.sh" $install_flags > /dev/null 2>&1
+	fi
 
 	prompt=$(cat "$test_dir/prompt.md")
 	expected=$(cat "$test_dir/expected.md")
@@ -274,7 +278,11 @@ show_help() {
 	printf "  -h, --help           Show this help message\n"
 	printf "  -v, --verbose        Show full output for all tests\n"
 	printf "  --mode $(c option MODE)      Installation mode to test: project, global, or all\n"
-	printf "                       (default: $(c option all))\n\n"
+	printf "                       (default: $(c option all))\n"
+	printf "  --install $(c option LEVEL)  Installation level: $(c option none), $(c option config), or $(c option full) (default)\n"
+	printf "                       $(c option none):   Skip install (test native agent support)\n"
+	printf "                       $(c option config): Config only (no polyfill hooks)\n"
+	printf "                       $(c option full):   Complete installation with hooks\n\n"
 
 	printf "$(c heading Examples:)\n"
 	printf "  $(c command test-agents.sh)                                           # All tests, all agents, all modes\n"
@@ -286,7 +294,9 @@ show_help() {
 	printf "  $(c command test-agents.sh) $(c agent claude) $(c test basic-load)                         # basic-load on claude, all modes\n"
 	printf "  $(c command test-agents.sh) --mode $(c option project) $(c agent claude) $(c test basic-load)          # basic-load on claude, project mode\n"
 	printf "  $(c command test-agents.sh) $(c agent claude) $(c agent gemini) $(c test basic-load)                # basic-load on two agents, all modes\n"
-	printf "  $(c command test-agents.sh) $(c agent claude) $(c test basic-load) $(c test nested-precedence)      # Two tests on claude, all modes\n\n"
+	printf "  $(c command test-agents.sh) $(c agent claude) $(c test basic-load) $(c test nested-precedence)      # Two tests on claude, all modes\n"
+	printf "  $(c command test-agents.sh) --install $(c option none) $(c agent claude)                 # Test claude's native support (no install)\n"
+	printf "  $(c command test-agents.sh) --install $(c option config)                         # Test with config-only install (no hooks)\n\n"
 
 	printf "$(c heading Agents:)\n"
 	for agent in $KNOWN_AGENTS; do
@@ -317,6 +327,7 @@ main() {
 	# Parse arguments
 	local verbose=0
 	local mode_arg="all"
+	local install_arg="full"
 	local agent_args=""
 	local test_args=""
 	local parsing_mode="auto"  # auto, agents, tests
@@ -342,6 +353,17 @@ main() {
 						;;
 				esac
 				;;
+			--install)
+				install_arg="$2"
+				case "$install_arg" in
+					none|config|full)
+						shift 2
+						;;
+					*)
+						panic 2 show_usage "Invalid install level: $(c option "'$install_arg'"). Valid levels: $(c_list option none config full)"
+						;;
+				esac
+				;;
 			*)
 				# Collect positional arguments
 				if [ "$parsing_mode" = "auto" ] || [ "$parsing_mode" = "agents" ]; then
@@ -356,6 +378,7 @@ main() {
 
 	# Export for use in run_test and display_result
 	VERBOSE=$verbose
+	INSTALL_LEVEL=$install_arg
 
 	# Determine modes to run
 	local modes_to_run

@@ -7,6 +7,7 @@ SUPPORTED_AGENTS="claude gemini"
 
 # Installation modes
 INSTALL_MODE="project"  # project, local, or global
+INSTALL_LEVEL="full"    # none, config, or full
 
 # ============================================
 # Colors
@@ -364,7 +365,19 @@ create_skills_symlink() {
 # ============================================
 
 template_gemini_settings() {
-	# Global mode includes the skills hook
+	# Config level: just context settings, no hooks
+	if [ "$INSTALL_LEVEL" = "config" ]; then
+		cat <<-'end_template'
+			{
+			  "context": {
+			    "fileName": ["AGENTS.md", "GEMINI.md"]
+			  }
+			}
+		end_template
+		return
+	fi
+
+	# Full level: Global mode includes the skills hook
 	if [ "$INSTALL_MODE" = "global" ]; then
 		local skills_hook_path="$(polyfill_dir)/gemini/skills.sh"
 		cat <<-end_template
@@ -394,6 +407,16 @@ template_gemini_settings() {
 }
 
 template_claude_settings() {
+	# Config level: empty settings (no hooks)
+	if [ "$INSTALL_LEVEL" = "config" ]; then
+		cat <<-'end_template'
+			{
+			}
+		end_template
+		return
+	fi
+
+	# Full level: includes hooks
 	local polyfill_path=$(polyfill_reference_path "claude/agentsmd.sh")
 
 	# Global mode also includes the skills hook
@@ -723,6 +746,9 @@ plan_gemini() {
 		"$(template_gemini_settings)" \
 		"add AGENTS.md to context"
 
+	# Config level: no polyfill scripts
+	[ "$INSTALL_LEVEL" = "config" ] && return
+
 	# Global mode: plan the skills hook script
 	if [ "$INSTALL_MODE" = "global" ]; then
 		local skills_hook_path="$(polyfill_dir)/gemini/skills.sh"
@@ -746,6 +772,9 @@ plan_claude() {
 		"$(claude_settings_path)" \
 		"$(template_claude_settings)" \
 		"add AGENTS.md hook"
+
+	# Config level: no polyfill scripts
+	[ "$INSTALL_LEVEL" = "config" ] && return
 
 	# Plan the AGENTS.md hook script
 	local polyfill_path="$(polyfill_dir)/claude/agentsmd.sh"
@@ -884,6 +913,17 @@ main() {
 			--global)
 				INSTALL_MODE="global"
 				shift
+				;;
+			--level)
+				case "$2" in
+					config|full)
+						INSTALL_LEVEL="$2"
+						shift 2
+						;;
+					*)
+						panic 2 show_usage "Invalid level: $(c option "'$2'"). Valid levels: $(c_list option config full)"
+						;;
+				esac
 				;;
 			-*)
 				panic 2 show_usage "Unknown option: $1"

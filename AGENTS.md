@@ -1,6 +1,6 @@
 # Universal Agents Project
 
-This file provides context and instructions for AI coding agents working on this project.
+This file provides context and instructions for AI coding agents working on this project. [Read the README](./README.md) to understand what this project is about.
 
 ## Documentation
 
