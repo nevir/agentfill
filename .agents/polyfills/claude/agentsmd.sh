@@ -55,8 +55,8 @@ cat <<-end_root_context
 
 The content of ./AGENTS.md is as follows:
 
-<root_agentsmd>
+<agentsmd path="./AGENTS.md">
 $(cat "./AGENTS.md")
-</root_agentsmd>
+</agentsmd>
 end_root_context
 fi
