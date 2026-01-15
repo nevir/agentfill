@@ -7,8 +7,6 @@ TESTS_DIR="$SCRIPT_DIR/agents"
 
 cd "$REPO_ROOT"
 
-KNOWN_AGENTS="claude cursor-agent gemini"
-
 # Load agent detection (auto-configures VERBOSE and DISABLE_COLORS)
 . "$SCRIPT_DIR/_common/agent-detection.sh"
 
@@ -16,6 +14,76 @@ KNOWN_AGENTS="claude cursor-agent gemini"
 . "$SCRIPT_DIR/_common/colors.sh"
 . "$SCRIPT_DIR/_common/utils.sh"
 . "$SCRIPT_DIR/_common/output.sh"
+
+# ============================================
+# Agent-specific Configuration
+# ============================================
+
+# Define agent-specific commands and settings paths
+# This centralizes agent configuration so new agents only need to be added here
+
+KNOWN_AGENTS="claude cursor-agent gemini"
+
+agent_command() {
+	local agent="$1"
+	local prompt="$2"
+
+	case "$agent" in
+		claude)       echo "echo \"$prompt\" | claude --print" ;;
+		cursor-agent) echo "echo \"$prompt\" | cursor-agent --print" ;;
+		gemini)       echo "echo \"$prompt\" | gemini" ;;
+	esac
+}
+
+agent_settings_path() {
+	local agent="$1"
+
+	case "$agent" in
+		claude)       echo "$HOME/.claude/settings.json" ;;
+		cursor-agent) echo "$HOME/.cursor-agent/settings.json" ;;
+		gemini)       echo "$HOME/.gemini/settings.json" ;;
+	esac
+}
+
+# Get the polyfill path for an agent (if different from default)
+agent_polyfill_path() {
+	local agent="$1"
+
+	case "$agent" in
+		claude) echo "$HOME/.agents/polyfills/claude/agentsmd.sh" ;;
+	esac
+}
+
+# Backup agent settings before global install
+backup_agent_settings() {
+	local agent="$1"
+	local settings_path
+	local backup=""
+
+	settings_path=$(agent_settings_path "$agent")
+
+	if [ -f "$settings_path" ]; then
+		backup=$(cat "$settings_path")
+	fi
+
+	echo "$backup"
+}
+
+# Restore agent settings after global install
+restore_agent_settings() {
+	local agent="$1"
+	local backup="$2"
+	local settings_path
+
+	settings_path=$(agent_settings_path "$agent")
+
+	if [ -n "$backup" ]; then
+		mkdir -p "$(dirname "$settings_path")"
+		echo "$backup" > "$settings_path"
+	else
+		rm -f "$settings_path"
+	fi
+}
 
 # ============================================
 # Agent-specific Utilities
@@ -98,13 +166,14 @@ run_test() {
 	cp -R "$sandbox_dir/"* "$sandbox_dir/".* "$temp_dir/" 2>/dev/null || true
 
 	# For global mode, backup existing settings before install
-	local claude_backup=""
-	local gemini_backup=""
+	local settings_backup=""
 	local polyfill_backup=""
 	if [ "$mode" = "global" ]; then
-		[ -f "$HOME/.claude/settings.json" ] && claude_backup=$(cat "$HOME/.claude/settings.json")
-		[ -f "$HOME/.gemini/settings.json" ] && gemini_backup=$(cat "$HOME/.gemini/settings.json")
-		[ -f "$HOME/.agents/polyfills/claude/agentsmd.sh" ] && polyfill_backup=$(cat "$HOME/.agents/polyfills/claude/agentsmd.sh")
+		settings_backup=$(backup_agent_settings "$agent")
+		local polyfill_path=$(agent_polyfill_path "$agent")
+		if [ -n "$polyfill_path" ] && [ -f "$polyfill_path" ]; then
+			polyfill_backup=$(cat "$polyfill_path")
+		fi
 	fi
 
 	# Change to temp dir and run install (unless level is "none")
@@ -119,13 +188,8 @@ run_test() {
 	expected=$(cat "$test_dir/expected.md")
 	expected=$(trim "$expected")
 
-	# Determine the command to run
-	case "$agent" in
-		claude)       TEST_COMMAND="echo \"$prompt\" | claude --print" ;;
-		cursor-agent) TEST_COMMAND="echo \"$prompt\" | cursor-agent --print" ;;
-		gemini)       TEST_COMMAND="echo \"$prompt\" | gemini" ;;
-		*)            TEST_COMMAND="echo \"$prompt\" | $agent" ;;
-	esac
+	# Get the command to run
+	TEST_COMMAND=$(agent_command "$agent" "$prompt")
 
 	# Run agent from within temp directory
 	if [ "$VERBOSE" -eq 1 ]; then
@@ -138,18 +202,10 @@ run_test() {
 		print_indented 6 "$TEST_COMMAND"
 		printf "    $(c heading Full output:)\n"
 
-		case "$agent" in
-			claude) output=$(echo "$prompt" | claude --print 2>/dev/null | sed 's/^/      /' | tee /dev/stderr) ;;
-			gemini) output=$(echo "$prompt" | gemini 2>/dev/null | sed 's/^/      /' | tee /dev/stderr) ;;
-			*)      output=$(echo "$prompt" | "$agent" 2>/dev/null | sed 's/^/      /' | tee /dev/stderr) ;;
-		esac
+		output=$(eval "$TEST_COMMAND" 2>/dev/null | sed 's/^/      /' | tee /dev/stderr)
 	else
 		# In normal mode, just capture output
-		case "$agent" in
-			claude) output=$(echo "$prompt" | claude --print 2>/dev/null) ;;
-			gemini) output=$(echo "$prompt" | gemini 2>/dev/null) ;;
-			*)      output=$(echo "$prompt" | "$agent" 2>/dev/null) ;;
-		esac
+		output=$(eval "$TEST_COMMAND" 2>/dev/null)
 	fi
 
 	output=$(trim "$output")
@@ -182,23 +238,16 @@ run_test() {
 
 	# Restore backups for global mode
 	if [ "$mode" = "global" ]; then
-		if [ -n "$claude_backup" ]; then
-			mkdir -p "$HOME/.claude"
-			echo "$claude_backup" > "$HOME/.claude/settings.json"
-		else
-			rm -f "$HOME/.claude/settings.json"
-		fi
-		if [ -n "$gemini_backup" ]; then
-			mkdir -p "$HOME/.gemini"
-			echo "$gemini_backup" > "$HOME/.gemini/settings.json"
-		else
-			rm -f "$HOME/.gemini/settings.json"
-		fi
-		if [ -n "$polyfill_backup" ]; then
-			mkdir -p "$HOME/.agents/polyfills"
-			echo "$polyfill_backup" > "$HOME/.agents/polyfills/claude/agentsmd.sh"
-		else
-			rm -f "$HOME/.agents/polyfills/claude/agentsmd.sh"
+		restore_agent_settings "$agent" "$settings_backup"
+
+		local polyfill_path=$(agent_polyfill_path "$agent")
+		if [ -n "$polyfill_path" ]; then
+			if [ -n "$polyfill_backup" ]; then
+				mkdir -p "$(dirname "$polyfill_path")"
+				echo "$polyfill_backup" > "$polyfill_path"
+			else
+				rm -f "$polyfill_path"
+			fi
 		fi
 	fi
 
