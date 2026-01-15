@@ -222,10 +222,25 @@ load_test_suites
 # ============================================
 
 main() {
+	local requested_tests=""
+
 	while [ $# -gt 0 ]; do
 		case "$1" in
-			-v|--verbose) VERBOSE=1; shift ;;
-			*)            shift ;;
+			-h|--help)
+				show_help
+				exit 0
+				;;
+			-v|--verbose)
+				VERBOSE=1
+				shift
+				;;
+			-*)
+				panic 2 show_usage "Unknown option: $1"
+				;;
+			*)
+				requested_tests="$requested_tests $1"
+				shift
+				;;
 		esac
 	done
 
@@ -238,31 +253,79 @@ main() {
 
 	for test_file in $(discover_test_files); do
 		local suite_name=$(get_suite_name "$test_file")
-
-		# Print suite header when we encounter a new suite
-		if [ "$suite_name" != "$current_suite" ]; then
-			if [ -n "$current_suite" ]; then
-				printf "\n"
-			fi
-			print_section_header "$suite_name"
-			current_suite="$suite_name"
-		fi
+		local suite_printed=0
 
 		# Run all test functions from this file
 		for test_func in $(grep -E '^test_[a-zA-Z0-9_]+\(\)' "$test_file" | sed 's/().*$//' || true); do
 			# Convert test_function_name to test-name
 			local test_name=$(echo "$test_func" | sed 's/^test_//' | tr '_' '-')
+
+			# Skip if specific tests requested and this isn't one of them
+			if [ -n "$requested_tests" ]; then
+				local found=0
+				for req_test in $requested_tests; do
+					if [ "$test_name" = "$req_test" ]; then
+						found=1
+						break
+					fi
+				done
+				if [ "$found" -eq 0 ]; then
+					continue
+				fi
+			fi
+
+			# Print suite header when we encounter a new suite (only if we're running tests from it)
+			if [ "$suite_name" != "$current_suite" ] || [ "$suite_printed" -eq 0 ]; then
+				if [ -n "$current_suite" ] && [ "$suite_printed" -eq 1 ]; then
+					printf "\n"
+				fi
+				print_section_header "$suite_name"
+				current_suite="$suite_name"
+				suite_printed=1
+			fi
+
 			run_test "$test_name" "$test_func"
 		done
 	done
 
 	printf "\n"
+
+	# Warn if specific tests were requested but none were found
+	if [ -n "$requested_tests" ] && [ "$TEST_COUNT" -eq 0 ]; then
+		printf "$(c warning "Warning:") No tests matched: $requested_tests\n"
+		printf "\n"
+		exit 1
+	fi
+
 	printf "$(c success %d/%d passed)\n" "$PASS_COUNT" "$TEST_COUNT"
 	printf "\n"
 
 	if [ "$FAIL_COUNT" -gt 0 ]; then
 		exit 1
 	fi
+}
+
+# ============================================
+# Usage and help
+# ============================================
+
+usage() {
+	printf "Usage: $(c command "test-unit.sh") [$(c flag "OPTIONS")] [$(c test "TEST")...]\n"
+}
+
+show_help() {
+	printf "%s\n\n" "$(usage)"
+	printf "Run unit tests for the install script.\n\n"
+	printf "$(c heading "OPTIONS:")\n"
+	printf "  $(c flag "-v, --verbose")    Show verbose test output\n"
+	printf "  $(c flag "-h, --help")       Show this help message\n\n"
+	printf "$(c heading "ARGUMENTS:")\n"
+	printf "  $(c test "TEST")              One or more test names to run (runs all if not specified)\n\n"
+	printf "$(c heading "EXAMPLES:")\n"
+	printf "  $(c command "test-unit.sh")                                    Run all tests\n"
+	printf "  $(c command "test-unit.sh") $(c flag "-v")                                  Run all tests (verbose)\n"
+	printf "  $(c command "test-unit.sh") $(c test "basic-install")                      Run specific test\n"
+	printf "  $(c command "test-unit.sh") $(c test "basic-install") $(c test "config-only")      Run multiple tests\n"
 }
 
 main "$@"
