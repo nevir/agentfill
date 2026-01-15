@@ -482,11 +482,20 @@ main() {
 			continue
 		fi
 
-		# Check if it's an agent
+		# Check if it's an available agent
 		local is_agent=0
 		for agent in $available_agents; do
 			if [ "$agent" = "$arg" ]; then
 				is_agent=1
+				break
+			fi
+		done
+
+		# Check if it's a known but unavailable agent
+		local is_known_agent=0
+		for agent in $KNOWN_AGENTS; do
+			if [ "$agent" = "$arg" ]; then
+				is_known_agent=1
 				break
 			fi
 		done
@@ -516,6 +525,8 @@ main() {
 			else
 				tests="$tests $arg"
 			fi
+		elif [ $is_known_agent -eq 1 ]; then
+			panic 2 show_usage "Agent $(c agent "'$arg'") not found on PATH"
 		else
 			panic 2 show_usage "Unknown argument: $(c agent "'$arg'")"
 		fi
