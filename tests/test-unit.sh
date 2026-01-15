@@ -6,7 +6,10 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 INSTALL_SCRIPT="$REPO_ROOT/install.sh"
 TESTS_DIR="$SCRIPT_DIR/unit"
 
-# Load common libraries
+# Load agent detection (auto-configures VERBOSE and DISABLE_COLORS)
+. "$SCRIPT_DIR/_common/agent-detection.sh"
+
+# Load common libraries (after setting DISABLE_COLORS)
 . "$SCRIPT_DIR/_common/colors.sh"
 . "$SCRIPT_DIR/_common/utils.sh"
 . "$SCRIPT_DIR/_common/output.sh"
@@ -18,7 +21,6 @@ TESTS_DIR="$SCRIPT_DIR/unit"
 TEST_COUNT=0
 PASS_COUNT=0
 FAIL_COUNT=0
-VERBOSE=0
 
 create_temp_project() {
 	mktemp -d /tmp/install_test_XXXXXX
@@ -243,8 +245,6 @@ main() {
 				;;
 		esac
 	done
-
-	printf "\n"
 
 	# Build a map of suite -> tests
 	local current_suite=""

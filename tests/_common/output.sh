@@ -49,7 +49,7 @@ print_heading() {
 print_section_header() {
 	local section_name="$1"
 	local color="${2:-heading}"
-	printf "$(c bold)$(c "$color" "=== $section_name ===")\n"
+	printf "\n$(c bold)$(c "$color" "=== $section_name ===")\n"
 }
 
 # Print indented content

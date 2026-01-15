@@ -27,6 +27,13 @@ color_option="$color_blue"
 c() {
 	local color_name="$1"; shift
 	local text="$*"
+
+	# Short-circuit if colors are disabled
+	if [ "${DISABLE_COLORS:-0}" -eq 1 ]; then
+		printf "%s" "$text"
+		return
+	fi
+
 	local var_name
 	local color_code
 

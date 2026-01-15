@@ -4,6 +4,45 @@
 
 Claude Code is Anthropic's official CLI for Claude. It features a comprehensive hooks system, native Agent Skills support, and a plugin mechanism for extensibility.
 
+## Environment Variables
+
+Claude Code sets the following environment variables during execution:
+
+### Detection Variables
+
+| Variable | Value | Availability | Purpose |
+|----------|-------|--------------|---------|
+| `CLAUDECODE` | `1` | Bash commands | Set when running in Claude Code; reliable for detection |
+| `CLAUDE_AGENT_SDK_VERSION` | Version string | Bash commands | SDK version (e.g., `0.1.75`) |
+| `CLAUDE_CODE_ENTRYPOINT` | String | Bash commands | Entry point (e.g., `claude-vscode`, `claude-cli`) |
+| `CLAUDE_PROJECT_DIR` | Absolute path | Hooks only | Project root directory where Claude Code was started |
+| `CLAUDE_CODE_REMOTE` | `"true"` | Context-dependent | Set when running in web environment; not set for local CLI |
+
+### Hook-Specific Variables
+
+| Variable | Availability | Purpose |
+|----------|-------------|---------|
+| `CLAUDE_ENV_FILE` | SessionStart hooks only | Path to file where you can persist environment variables |
+| `CLAUDE_PLUGIN_ROOT` | Plugin hooks only | Absolute path to plugin directory |
+
+### Configuration Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `CLAUDE_BASH_NO_LOGIN` | Skip login shell behavior when set |
+
+### Detection Pattern
+
+To detect if running under Claude Code in bash commands:
+
+```bash
+if [ "$CLAUDECODE" = "1" ]; then
+	echo "Running in Claude Code"
+fi
+```
+
+In hooks, `CLAUDE_PROJECT_DIR` is also available and can be used for detection.
+
 ## Configuration File Locations
 
 Claude Code uses a hierarchical settings system:

@@ -7,9 +7,12 @@ TESTS_DIR="$SCRIPT_DIR/agents"
 
 cd "$REPO_ROOT"
 
-KNOWN_AGENTS="aider claude cursor-agent gemini"
+KNOWN_AGENTS="claude cursor-agent gemini"
 
-# Load common libraries
+# Load agent detection (auto-configures VERBOSE and DISABLE_COLORS)
+. "$SCRIPT_DIR/_common/agent-detection.sh"
+
+# Load common libraries (after setting DISABLE_COLORS)
 . "$SCRIPT_DIR/_common/colors.sh"
 . "$SCRIPT_DIR/_common/utils.sh"
 . "$SCRIPT_DIR/_common/output.sh"
@@ -499,8 +502,6 @@ main() {
 	local total_passed=0
 	local total_failed=0
 
-	printf "\n"
-
 	for agent in $agents_to_run; do
 		print_section_header "$agent" "agent"
 
@@ -535,8 +536,6 @@ main() {
 		local agent_var=$(normalize_agent_name "$agent")
 		eval "agent_passed_$agent_var=$passed"
 		eval "agent_total_$agent_var=$((passed + failed))"
-
-		printf "\n"
 	done
 
 	# Display summary

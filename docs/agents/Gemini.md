@@ -4,6 +4,36 @@
 
 Gemini CLI is Google's command-line interface for Gemini. It features a comprehensive hooks system, native Agent Skills support (experimental), and a robust extension system for extensibility.
 
+## Environment Variables
+
+Gemini CLI supports environment variable configuration but does not set specific detection variables.
+
+### Configuration Override Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `GEMINI_CLI_SYSTEM_DEFAULTS_PATH` | Override system defaults location |
+| `GEMINI_CLI_SYSTEM_SETTINGS_PATH` | Override system settings location |
+
+**Note**: These variables are typically used for testing or custom deployments, not for general detection.
+
+### Detection Pattern
+
+Gemini CLI does not set a dedicated environment variable to indicate it's running. Detection is unreliable and not recommended.
+
+### Environment Variable Interpolation
+
+String values in `settings.json` can reference environment variables:
+
+```json
+{
+	"customPath": "$HOME/.agents/custom",
+	"anotherPath": "${PROJECT_ROOT}/config"
+}
+```
+
+Variables are resolved using `$VAR_NAME` or `${VAR_NAME}` syntax when settings are loaded.
+
 ## Configuration File Locations
 
 Gemini CLI uses a four-tier configuration system:
