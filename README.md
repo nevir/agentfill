@@ -45,7 +45,7 @@ Out of the box, most agents have incomplete or missing AGENTS.md support:
 | 📄 **Basic support** | ❌ | ✅ [Root only](https://cursor.com/docs/context/rules) | ⚠️ [Configurable](https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html) |
 | 🪺 **Nested** | ❌ | ⚠️ [Broken](https://forum.cursor.com/t/nested-agents-md-files-not-being-loaded/138411) | ✅ |
 | 🎯 **Selective** | ❌ | ❌ | ❌ |
-| 🔧 **Skills** | ✅ [Native](https://agentskills.io) | ❌ | ⚠️ [Experimental](https://geminicli.com/docs/cli/skills/) |
+| 🔧 **Skills** | ✅ [Native](https://agentskills.io) | ⚠️ [Experimental](https://cursor.com/docs/context/skills) | ⚠️ [Experimental](https://geminicli.com/docs/cli/skills/) |
 
 ## How It Works
 

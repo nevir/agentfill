@@ -12,6 +12,8 @@ The AI coding agent ecosystem suffers from configuration fragmentation, with eac
 
 - **Ruler**: Centralized rule management with automatic distribution to tool-specific files. Supports many agents but requires sync workflow and maintains duplicate files.
 
+- **Rulesync**: Similar approach to Ruler, but with support for translating rule metadata to agent-specific formats, subagent configurations, `.aiignore` file, and commands.
+
 - **OpenSkills**: Package manager for AI agent skills/capabilities. Focuses on shareable, reusable skill definitions rather than project configuration.
 
 - **Codebase Context Specification (CCS)**: `.context` directory convention for documenting codebase structure. Separate paradigm from behavioral instructions.
@@ -29,6 +31,7 @@ The AI coding agent ecosystem suffers from configuration fragmentation, with eac
 - [Project Comparison](#project-comparison)
   - [Universal Agents (This Project)](#universal-agents-this-project)
   - [Ruler](#ruler)
+  - [Rulesync](#rulesync)
   - [OpenSkills](#openskills)
   - [Symlink Approach](#symlink-approach)
   - [Codebase Context Specification (CCS)](#codebase-context-specification-ccs)
@@ -172,6 +175,52 @@ npm i @intellectronica/ruler
 - Generated files must be committed to version control
 
 **Philosophy**: Accept fragmentation, provide tooling to manage it. Maintain both standard and tool-specific files.
+
+---
+
+### Rulesync
+
+**Repository**: [github.com/dyoshikawa/rulesync](https://github.com/dyoshikawa/rulesync)
+
+**Approach**: Centralized config management with automatic distribution to tool-specific formats.
+
+**Installation**:
+```bash
+npm i rulesync
+# or
+brew install rulesync
+# or
+# download pre-built binary for your platform here: https://github.com/dyoshikawa/rulesync/releases
+```
+
+**Key Features**:
+- ✅ **Centralized management**: Single .ruler/ directory as source of truth
+- ✅ **Automatic distribution**: Generates tool-specific config files
+- ✅ **Skills support**: Specialized knowledge packages in .rulesync/skills/
+- ✅ **Aiignore support**: Single aiignore file in .rulesync/.aiignore
+- ✅ **Commands support**: Simple referencable prompts in .rulesync/commands/
+- ✅ **MCP support**: Centralized MCP configuration in .rulesync/mcp.json
+- ✅ **Subagents support**: Custom subagent definitions in .rulesync/subagents/
+
+**Implementation Strategy**:
+- Store everything in .rulesync/ directory
+- Run `rulesync generate --targets "claudecode,cursor,etc" --features "rules,mcp,etc"` to distribute to agent-specific files
+- Maintains custom rulesync dir/format and tool-specific files
+
+**Strengths**:
+- Works with any agent (generates their native formats)
+- TypeScript-based with good tooling
+- Active development (v5.7.0, updated daily)
+- Very comprehensive tool support (rules, ignore, mcp, commands, subagents, and skills)
+- Distributes pre-built binaries
+
+**Limitations**:
+- No config file for controlling supported agents and tools
+- Must run `rulesync generate` after changes
+- Creates duplicate files (maintenance burden)
+- Generated files must be committed to version control
+
+**Philosophy**: Accept fragmentation, provide tooling to manage it. Maintain both non-standard but comprehensive and tool-specific files.
 
 ---
 
