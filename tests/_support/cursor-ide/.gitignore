@@ -1,0 +1,4 @@
+.cursor-test-profile/
+.vscode-test/
+node_modules/
+.cursor-test-extensions/

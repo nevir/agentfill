@@ -1,0 +1,23 @@
+{
+  "name": "cursor-ide-test-harness",
+  "version": "0.1.0",
+  "description": "Test harness for running prompts through Cursor IDE",
+  "type": "module",
+  "main": "run-prompt.js",
+  "bin": {
+    "cursor-ide-prompt": "./run-prompt.js"
+  },
+  "scripts": {
+    "test": "node run-prompt.js --help",
+    "discover-commands": "node discover-commands.js"
+  },
+  "dependencies": {
+    "@vscode/test-electron": "^2.4.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.95.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

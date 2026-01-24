@@ -1,0 +1,91 @@
+#!/bin/sh
+# cursor-prompt - Send a prompt to Cursor IDE and get a response
+#
+# Usage:
+#   echo "prompt" | cursor-prompt [--workspace PATH]
+#   cursor-prompt "prompt" [--workspace PATH]
+#   cursor-prompt --discover [--workspace PATH]
+#
+# This script is designed to be called by test-agents.sh
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Ensure dependencies are installed
+ensure_deps() {
+    if [ ! -d "$SCRIPT_DIR/node_modules" ]; then
+        echo "Installing dependencies..." >&2
+        (cd "$SCRIPT_DIR" && npm install --silent) >&2
+    fi
+
+    if [ ! -d "$SCRIPT_DIR/extension/node_modules" ]; then
+        echo "Installing extension dependencies..." >&2
+        (cd "$SCRIPT_DIR/extension" && npm install --silent) >&2
+    fi
+
+    if [ ! -d "$SCRIPT_DIR/extension/out" ]; then
+        echo "Compiling extension..." >&2
+        (cd "$SCRIPT_DIR/extension" && npm run compile) >&2
+    fi
+}
+
+# Parse arguments
+WORKSPACE=""
+DISCOVER=""
+PROMPT=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --discover)
+            DISCOVER=1
+            shift
+            ;;
+        --workspace)
+            WORKSPACE="$2"
+            shift 2
+            ;;
+        --help|-h)
+            echo "Usage: cursor-prompt [OPTIONS] [PROMPT]"
+            echo ""
+            echo "Options:"
+            echo "  --discover        Discover available Cursor commands"
+            echo "  --workspace PATH  Workspace directory (default: current dir)"
+            echo "  --help            Show this help"
+            echo ""
+            echo "If no PROMPT is given, reads from stdin."
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            exit 1
+            ;;
+        *)
+            PROMPT="$1"
+            shift
+            ;;
+    esac
+done
+
+# Read prompt from stdin if not provided
+if [ -z "$PROMPT" ] && [ -z "$DISCOVER" ]; then
+    PROMPT=$(cat)
+fi
+
+# Default workspace to current directory
+if [ -z "$WORKSPACE" ]; then
+    WORKSPACE="$(pwd)"
+fi
+
+# Ensure dependencies
+ensure_deps
+
+# Run the Node.js script
+if [ -n "$DISCOVER" ]; then
+    node "$SCRIPT_DIR/run-prompt.js" --discover --workspace "$WORKSPACE"
+elif [ -n "$PROMPT" ]; then
+    node "$SCRIPT_DIR/run-prompt.js" "$PROMPT" --workspace "$WORKSPACE"
+else
+    echo "Error: No prompt provided" >&2
+    exit 1
+fi
