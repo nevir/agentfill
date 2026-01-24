@@ -13,14 +13,14 @@ agent_files=$(find . -name "AGENTS.md" -type f)
 # Detection: check if universal-agents is installed globally by checking for global polyfill directory
 has_global_agentsmd=0
 if [ -d "$HOME/.agents/polyfills" ] && [ -f "$HOME/AGENTS.md" ]; then
-	has_global_agentsmd=1
-	# Add to list if we have project files
-	if [ -n "$agent_files" ]; then
-		agent_files="$HOME/AGENTS.md
+has_global_agentsmd=1
+# Add to list if we have project files
+if [ -n "$agent_files" ]; then
+agent_files="$HOME/AGENTS.md
 $agent_files"
-	else
-		agent_files="$HOME/AGENTS.md"
-	fi
+else
+agent_files="$HOME/AGENTS.md"
+fi
 fi
 
 # Exit if no AGENTS.md files found
@@ -75,14 +75,14 @@ end_context
 
 # Load global AGENTS.md first (lowest precedence)
 if [ "$has_global_agentsmd" -eq 1 ]; then
-	cat <<-end_global_context
+cat <<-end_global_context
 
-		The content of ~/AGENTS.md is as follows:
+The content of ~/AGENTS.md is as follows:
 
-		<agentsmd path="~/AGENTS.md" absolute_path="$HOME/AGENTS.md">
-		$(cat "$HOME/AGENTS.md")
-		</agentsmd>
-	end_global_context
+<agentsmd path="~/AGENTS.md" absolute_path="$HOME/AGENTS.md">
+$(cat "$HOME/AGENTS.md")
+</agentsmd>
+end_global_context
 fi
 
 # If there is a root AGENTS.md, load it now (higher precedence than global)
