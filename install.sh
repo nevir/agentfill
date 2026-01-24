@@ -554,7 +554,7 @@ template_claude_hook() {
 
 				The content of \$HOME/AGENTS.md is as follows:
 
-				<agentsmd path="\$HOME/AGENTS.md">
+				<agentsmd path="\$HOME/AGENTS.md" absolute_path="$HOME/AGENTS.md">
 				$(cat "$HOME/AGENTS.md")
 				</agentsmd>
 			end_global_context
@@ -566,7 +566,7 @@ template_claude_hook() {
 
 				The content of ./AGENTS.md is as follows:
 
-				<agentsmd path="./AGENTS.md">
+				<agentsmd path="./AGENTS.md" absolute_path="$CLAUDE_PROJECT_DIR/AGENTS.md">
 				$(cat "./AGENTS.md")
 				</agentsmd>
 			end_root_context
