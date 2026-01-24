@@ -42,6 +42,28 @@ This applies when:
 - Working on test runner scripts
 - Understanding test output or behavior
 
+## Pre-Commit Checklist
+
+**CRITICAL**: Before committing any changes to this repository, you MUST:
+
+1. **Run unit tests**: Execute `./tests/test-unit.sh` and ensure all tests pass
+2. **Update polyfills**: If you modified `install.sh`, run `./install.sh` in the repository to update `.agents/polyfills/` with the latest templates
+3. **Verify changes**: Review that polyfill files match the templates in `install.sh`
+
+These steps ensure:
+- Code changes don't break existing functionality
+- Polyfill files stay in sync with install script templates
+- CI checks will pass when the PR is created
+
+**Example workflow**:
+```sh
+# After modifying install.sh
+./install.sh                    # Update polyfills from templates
+./tests/test-unit.sh           # Run all unit tests
+git add -A                     # Stage both install.sh and updated polyfills
+git commit -m "Your message"   # Commit together
+```
+
 ## Shell Script Style Guide
 
 This project follows strict shell scripting conventions to ensure portability, readability, and maintainability.

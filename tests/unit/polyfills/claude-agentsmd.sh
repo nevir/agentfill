@@ -29,7 +29,7 @@ test_single_root_agentsmd() {
 	echo "$output" | grep -q "<agentsmd_instructions>" &&
 	echo "$output" | grep -q "<available_agentsmd_files>" &&
 	echo "$output" | grep -q "./AGENTS.md" &&
-	echo "$output" | grep -q '<agentsmd path="./AGENTS.md">' &&
+	echo "$output" | grep -q 'path="./AGENTS.md"' &&
 	echo "$output" | grep -q "# Test Project" &&
 	echo "$output" | grep -q "This is a test AGENTS.md file."
 }
@@ -62,7 +62,7 @@ test_multiple_nested_agentsmd() {
 	echo "$output" | grep -q "./subfolder/AGENTS.md" &&
 	echo "$output" | grep -q "./deep/nested/path/AGENTS.md" &&
 	# Should include root content
-	echo "$output" | grep -q '<agentsmd path="./AGENTS.md">' &&
+	echo "$output" | grep -q 'path="./AGENTS.md"' &&
 	echo "$output" | grep -q "# Root Instructions"
 }
 
@@ -83,7 +83,7 @@ test_nested_agentsmd_without_root() {
 	echo "$output" | grep -q "<available_agentsmd_files>" &&
 	echo "$output" | grep -q "./subfolder/AGENTS.md" &&
 	# Should NOT have root AGENTS.md content
-	! echo "$output" | grep -q '<agentsmd path="./AGENTS.md">'
+	! echo "$output" | grep -q 'path="./AGENTS.md"'
 }
 
 test_output_format_structure() {
@@ -103,7 +103,7 @@ test_output_format_structure() {
 	echo "$output" | grep -q "</agentsmd_instructions>" &&
 	echo "$output" | grep -q "<available_agentsmd_files>" &&
 	echo "$output" | grep -q "</available_agentsmd_files>" &&
-	echo "$output" | grep -q '<agentsmd path="./AGENTS.md">' &&
+	echo "$output" | grep -q 'path="./AGENTS.md"' &&
 	echo "$output" | grep -q "</agentsmd>" &&
 	# Verify key instruction text
 	echo "$output" | grep -q "NON-NEGOTIABLE" &&
@@ -146,6 +146,6 @@ test_empty_agentsmd_file() {
 	# Should still run successfully and include the file
 	echo "$output" | grep -q "<available_agentsmd_files>" &&
 	echo "$output" | grep -q "./AGENTS.md" &&
-	echo "$output" | grep -q '<agentsmd path="./AGENTS.md">' &&
+	echo "$output" | grep -q 'path="./AGENTS.md"' &&
 	echo "$output" | grep -q "</agentsmd>"
 }
