@@ -2,8 +2,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-TESTS_DIR="$SCRIPT_DIR/agents"
+export REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export TESTS_DIR="$SCRIPT_DIR/agents"
 
 cd "$REPO_ROOT"
 
@@ -545,6 +545,7 @@ show_help() {
 	printf "$(c heading Options:)\n"
 	printf "  $(c flag -h), $(c flag --help)        Show this help message\n"
 	printf "  $(c flag -v), $(c flag --verbose)     Show full output for all tests\n"
+	printf "  $(c flag -j), $(c flag --jobs) $(c option N)     Run N tests in parallel (default: $(c option 4))\n"
 	printf "  $(c flag --debug) $(c option MODE)      Run one test interactively for debugging\n"
 	printf "  $(c flag --mode) $(c option MODE)       Installation mode (default: $(c option all))\n"
 	printf "                      $(c option project):  Project-level install only\n"
@@ -563,7 +564,9 @@ show_help() {
 	printf "    $(c test combined-*)  Only runs in combined mode\n\n"
 
 	printf "$(c heading Examples:)\n"
-	printf "  $(c command test-agents.sh)                                       # All tests, all agents, all modes\n"
+	printf "  $(c command test-agents.sh)                                       # All tests, 4 parallel (default)\n"
+	printf "  $(c command test-agents.sh) $(c flag -j) $(c option 1)                                  # Sequential execution\n"
+	printf "  $(c command test-agents.sh) $(c flag -j) $(c option 8)                                  # Run 8 tests at once\n"
 	printf "  $(c command test-agents.sh) $(c agent claude)                                # All tests on Claude\n"
 	printf "  $(c command test-agents.sh) $(c agent claude) $(c test basic-support)                  # Specific test on Claude\n"
 	printf "  $(c command test-agents.sh) $(c flag --mode) $(c option global)                         # All tests in global mode only\n"
@@ -591,6 +594,398 @@ show_help() {
 }
 
 # ============================================
+# Parallel Execution
+# ============================================
+
+# Global state for parallel execution
+RESULTS_DIR=""
+JOB_PIDS=""
+RUNNING_TESTS=""
+RUNNING_BLOCK_LINES=0
+COMPLETED_COUNT=0
+COL_WIDTH_TEST=0
+COL_WIDTH_MODE=0
+COL_WIDTH_AGENT=0
+SPINNER_FRAMES="⣾⣽⣻⢿⡿⣟⣯⣷"
+SPINNER_INDEX=0
+SPINNER="⣾"
+SPINNER_INTERVAL_MS=150
+SPINNER_LAST_MS=0
+TOTAL_TESTS=0
+
+# Initialize the job pool and results directory
+init_job_pool() {
+	RESULTS_DIR=$(mktemp -d -t "test-results-XXXXXX")
+	JOB_PIDS=""
+	RUNNING_TESTS=""
+	RUNNING_BLOCK_LINES=0
+	COMPLETED_COUNT=0
+}
+
+# Clean up the job pool
+cleanup_job_pool() {
+	[ -n "$RESULTS_DIR" ] && rm -rf "$RESULTS_DIR"
+	RESULTS_DIR=""
+}
+
+# Get current time in milliseconds (portable)
+get_time_ms() {
+	if command -v perl >/dev/null 2>&1; then
+		perl -MTime::HiRes=time -e 'printf "%d", time * 1000' 2>/dev/null && return
+	fi
+	# Fallback: seconds * 1000 (less precise but works everywhere)
+	echo $(($(date +%s) * 1000))
+}
+
+# Advance spinner if enough time has passed, set SPINNER to current frame
+# Returns 0 if spinner changed, 1 if not
+advance_spinner() {
+	local now_ms=$(get_time_ms)
+	local elapsed=$((now_ms - SPINNER_LAST_MS))
+
+	if [ "$elapsed" -ge "$SPINNER_INTERVAL_MS" ]; then
+		SPINNER_LAST_MS=$now_ms
+		case $SPINNER_INDEX in
+			0) SPINNER="⣾" ;;
+			1) SPINNER="⣽" ;;
+			2) SPINNER="⣻" ;;
+			3) SPINNER="⢿" ;;
+			4) SPINNER="⡿" ;;
+			5) SPINNER="⣟" ;;
+			6) SPINNER="⣯" ;;
+			7) SPINNER="⣷" ;;
+		esac
+		SPINNER_INDEX=$(( (SPINNER_INDEX + 1) % 8 ))
+		return 0
+	fi
+	return 1
+}
+
+# Count currently running jobs
+count_running_jobs() {
+	local count=0
+	local new_pids=""
+
+	for pid in $JOB_PIDS; do
+		if kill -0 "$pid" 2>/dev/null; then
+			count=$((count + 1))
+			new_pids="$new_pids $pid"
+		fi
+	done
+
+	JOB_PIDS="$new_pids"
+	echo "$count"
+}
+
+# Wait until a job slot is available
+wait_for_slot() {
+	while [ "$(count_running_jobs)" -ge "$PARALLEL_JOBS" ]; do
+		sleep 0.05
+		# Only redraw if spinner changed (to reduce flicker)
+		if advance_spinner; then
+			print_running_block "$TOTAL_TESTS" "$COMPLETED_COUNT"
+		fi
+		poll_completed_tests "$TOTAL_TESTS"
+	done
+}
+
+# Add a test to the running list
+add_running_test() {
+	local test_id="$1"
+	RUNNING_TESTS="$RUNNING_TESTS $test_id"
+}
+
+# Remove a test from the running list
+remove_running_test() {
+	local test_id="$1"
+	local new_list=""
+
+	for t in $RUNNING_TESTS; do
+		if [ "$t" != "$test_id" ]; then
+			new_list="$new_list $t"
+		fi
+	done
+
+	RUNNING_TESTS="$new_list"
+}
+
+# Clear the running block from terminal
+clear_running_block() {
+	if [ "$RUNNING_BLOCK_LINES" -gt 0 ]; then
+		local i=0
+		while [ "$i" -lt "$RUNNING_BLOCK_LINES" ]; do
+			printf "\033[A\033[K"
+			i=$((i + 1))
+		done
+		RUNNING_BLOCK_LINES=0
+	fi
+}
+
+# Print the running block (sticky footer)
+# Uses cursor positioning to overwrite in place, minimizing flicker
+print_running_block() {
+	local total_tests="$1"
+	local completed="$2"
+	local running_count=0
+
+	# Count running tests
+	for t in $RUNNING_TESTS; do
+		running_count=$((running_count + 1))
+	done
+
+	if [ "$running_count" -eq 0 ]; then
+		RUNNING_BLOCK_LINES=0
+		return
+	fi
+
+	local new_lines=$((3 + running_count))
+
+	# Build all lines, each with \r to start at column 0 and \033[K to clear to end
+	local output=""
+
+	# If we have existing content, move cursor up to overwrite
+	if [ "$RUNNING_BLOCK_LINES" -gt 0 ]; then
+		output="\033[${RUNNING_BLOCK_LINES}A"
+	fi
+
+	# Blank line + progress + header
+	output="${output}\r\033[K
+\r$(c heading "$completed/$total_tests") complete\033[K
+\r$(c heading "Running:")\033[K"
+
+	# Each running test
+	for test_id in $RUNNING_TESTS; do
+		local agent=$(echo "$test_id" | cut -d: -f1)
+		local test_name=$(echo "$test_id" | cut -d: -f2)
+		local mode=$(echo "$test_id" | cut -d: -f3)
+
+		local padded_test=$(printf "%-${COL_WIDTH_TEST}s" "$test_name")
+		local padded_mode=$(printf "%-${COL_WIDTH_MODE}s" "$mode")
+		local padded_agent=$(printf "%-${COL_WIDTH_AGENT}s" "$agent")
+
+		output="${output}
+\r${SPINNER} $(c test "$padded_test")  $(c option "$padded_mode")  $(c agent "$padded_agent")\033[K"
+	done
+
+	# If new block is smaller, clear extra lines
+	if [ "$RUNNING_BLOCK_LINES" -gt "$new_lines" ]; then
+		local extra=$((RUNNING_BLOCK_LINES - new_lines))
+		local i=0
+		while [ "$i" -lt "$extra" ]; do
+			output="${output}
+\r\033[K"
+			i=$((i + 1))
+		done
+		# Move cursor back up to end of actual content
+		output="${output}\033[${extra}A"
+	fi
+
+	# Single write
+	printf "%b\n" "$output"
+	RUNNING_BLOCK_LINES=$new_lines
+}
+
+# Run a single test and write results to files (for parallel mode)
+run_test_parallel() {
+	local agent="$1"
+	local test_name="$2"
+	local mode="$3"
+	local test_id="$4"
+	local result_base="$RESULTS_DIR/$test_id"
+	local test_dir="$TESTS_DIR/$test_name"
+	local sandbox_dir="$test_dir/sandbox"
+	local global_dir="$test_dir/global"
+
+	# Create isolated temp directory for test (project working directory)
+	local temp_dir
+	temp_dir=$(mktemp -d -t "universal-agents-test-XXXXXX")
+
+	# Copy sandbox contents if it exists (sandbox is optional)
+	if [ -d "$sandbox_dir" ]; then
+		cp -R "$sandbox_dir/"* "$sandbox_dir/".* "$temp_dir/" 2>/dev/null || true
+	fi
+
+	# Create temp home directory for isolated global installs
+	local temp_home
+	temp_home=$(mktemp -d -t "universal-agents-home-XXXXXX")
+
+	# Copy agent credentials from real HOME (for authentication)
+	copy_agent_credentials "$agent" "$REAL_HOME" "$temp_home"
+
+	# Copy global directory contents to temp home if it exists
+	if [ -d "$global_dir" ]; then
+		cp -R "$global_dir/"* "$global_dir/".* "$temp_home/" 2>/dev/null || true
+	fi
+
+	# Get API key from keychain before changing HOME
+	local api_key
+	api_key=$(get_agent_api_key "$agent")
+
+	# Override HOME for test isolation
+	export HOME="$temp_home"
+
+	# Export API key if we got one from keychain
+	local api_key_env_var
+	api_key_env_var=$(agent_api_key_env_var "$agent")
+	if [ -n "$api_key" ] && [ -n "$api_key_env_var" ]; then
+		export "$api_key_env_var=$api_key"
+	fi
+
+	# Change to temp dir and run install (unless level is "none")
+	cd "$temp_dir"
+	if [ "$INSTALL_LEVEL" != "none" ]; then
+		local install_flags="-y --level $INSTALL_LEVEL"
+		case "$mode" in
+			project)
+				"$REPO_ROOT/install.sh" $install_flags > /dev/null 2>&1
+				;;
+			global)
+				"$REPO_ROOT/install.sh" $install_flags --global > /dev/null 2>&1
+				;;
+			combined)
+				"$REPO_ROOT/install.sh" $install_flags --global > /dev/null 2>&1
+				"$REPO_ROOT/install.sh" $install_flags > /dev/null 2>&1
+				;;
+		esac
+	fi
+
+	# For global/combined mode with global skills, create the skills symlink
+	if { [ "$mode" = "global" ] || [ "$mode" = "combined" ]; } && [ -d "$temp_home/.agents/skills" ]; then
+		local agent_skills_target
+		agent_skills_target=$(agent_skills_dir "$agent")
+		if [ -n "$agent_skills_target" ] && [ ! -e "$temp_dir/$agent_skills_target" ]; then
+			mkdir -p "$(dirname "$temp_dir/$agent_skills_target")"
+			ln -s "$temp_home/.agents/skills" "$temp_dir/$agent_skills_target"
+		fi
+	fi
+
+	local prompt=$(cat "$test_dir/prompt.md")
+	local expected=$(cat "$test_dir/expected.md")
+	expected=$(trim "$expected")
+
+	# Get the command to run
+	local test_command=$(agent_command "$agent" "$prompt")
+
+	# Run agent from within temp directory
+	local output
+	output=$(eval "$test_command" 2>/dev/null) || true
+	output=$(trim "$output")
+
+	# Extract answer from <answer> tags (required)
+	local extracted_answer=$(extract_answer "$output")
+	extracted_answer=$(trim "$extracted_answer")
+
+	# Write results to files
+	echo "$expected" > "$result_base.expected"
+	echo "$output" > "$result_base.output"
+	echo "$extracted_answer" > "$result_base.extracted"
+	echo "$temp_dir" > "$result_base.temp_dir"
+	echo "$temp_home" > "$result_base.temp_home"
+	echo "$test_command" > "$result_base.command"
+
+	# Determine result
+	if [ -z "$extracted_answer" ]; then
+		echo "fail" > "$result_base.status"
+		echo "missing_tags" > "$result_base.fail_reason"
+	elif [ "$extracted_answer" = "$expected" ]; then
+		echo "pass" > "$result_base.status"
+		# Clean up temp directories on success
+		rm -rf "$temp_dir"
+		rm -rf "$temp_home"
+	else
+		echo "fail" > "$result_base.status"
+		echo "mismatch" > "$result_base.fail_reason"
+	fi
+}
+
+# Start a test as a background job
+start_test_job() {
+	local agent="$1"
+	local test_name="$2"
+	local mode="$3"
+	local test_id="${agent}:${test_name}:${mode}"
+
+	add_running_test "$test_id"
+
+	(
+		run_test_parallel "$agent" "$test_name" "$mode" "$test_id"
+	) &
+
+	JOB_PIDS="$JOB_PIDS $!"
+}
+
+# Check for and display completed tests
+# Updates global COMPLETED_COUNT
+poll_completed_tests() {
+	local total_tests="$1"
+
+	for test_id in $RUNNING_TESTS; do
+		local result_base="$RESULTS_DIR/$test_id"
+
+		if [ -f "$result_base.status" ]; then
+			# Test completed - clear running block and display result
+			clear_running_block
+
+			local status=$(cat "$result_base.status")
+			local agent=$(echo "$test_id" | cut -d: -f1)
+			local test_name=$(echo "$test_id" | cut -d: -f2)
+			local mode=$(echo "$test_id" | cut -d: -f3)
+
+			# Pad strings for alignment (pad before colorizing)
+			local padded_test=$(printf "%-${COL_WIDTH_TEST}s" "$test_name")
+			local padded_mode=$(printf "%-${COL_WIDTH_MODE}s" "$mode")
+			local padded_agent=$(printf "%-${COL_WIDTH_AGENT}s" "$agent")
+
+			if [ "$status" = "pass" ]; then
+				printf "%b %b  %b  %b\n" "$(c success ✓)" "$(c test "$padded_test")" "$(c option "$padded_mode")" "$(c agent "$padded_agent")"
+			else
+				printf "%b %b  %b  %b\n" "$(c error ✗)" "$(c test "$padded_test")" "$(c option "$padded_mode")" "$(c agent "$padded_agent")"
+			fi
+
+			# Show details (always for failures, or when verbose)
+			if [ "$status" != "pass" ] || [ "$VERBOSE" -eq 1 ]; then
+				local extracted=$(cat "$result_base.extracted" 2>/dev/null || echo "<missing>")
+				local expected=$(cat "$result_base.expected")
+				local temp_dir=$(cat "$result_base.temp_dir")
+				local temp_home=$(cat "$result_base.temp_home")
+				local command=$(cat "$result_base.command" 2>/dev/null || echo "<unknown>")
+				local full_output=$(cat "$result_base.output" 2>/dev/null || echo "<no output>")
+
+				if [ -z "$extracted" ]; then
+					extracted="<missing answer tags>"
+				fi
+
+				printf "    %b\n" "$(c heading "Temp dir:")"
+				print_indented 6 "$temp_dir"
+				printf "    %b\n" "$(c heading "Temp home:")"
+				print_indented 6 "$temp_home"
+				printf "    %b\n" "$(c heading "Command:")"
+				print_indented 6 "$command"
+				printf "    %b\n" "$(c heading "Full output:")"
+				print_indented 6 "$full_output"
+				printf "    %b\n" "$(c heading "Extracted:")"
+				print_indented 6 "$extracted"
+				printf "    %b\n" "$(c heading "Expected:")"
+				print_indented 6 "$expected"
+			fi
+
+			remove_running_test "$test_id"
+			COMPLETED_COUNT=$((COMPLETED_COUNT + 1))
+
+			# Update per-agent stats
+			local agent_var=$(normalize_agent_name "$agent")
+			if [ "$status" = "pass" ]; then
+				eval "agent_passed_$agent_var=\$((agent_passed_$agent_var + 1))"
+			fi
+			eval "agent_total_$agent_var=\$((agent_total_$agent_var + 1))"
+
+			# Print updated running block
+			print_running_block "$total_tests" "$COMPLETED_COUNT"
+		fi
+	done
+}
+
+# ============================================
 # Main
 # ============================================
 
@@ -601,6 +996,7 @@ main() {
 	local debug_mode_arg=""
 	local mode_arg="all"
 	local install_arg="full"
+	local parallel_jobs=4
 	local agent_args=""
 	local test_args=""
 	local parsing_mode="auto"  # auto, agents, tests
@@ -614,6 +1010,20 @@ main() {
 			-v|--verbose)
 				verbose=1
 				shift
+				;;
+			-j|--jobs)
+				case "$2" in
+					''|-*)
+						panic 2 show_usage "$(c flag "$1") requires a number"
+						;;
+					*[!0-9]*)
+						panic 2 show_usage "Invalid job count: $(c option "'$2'")"
+						;;
+					*)
+						parallel_jobs="$2"
+						shift 2
+						;;
+				esac
 				;;
 			--debug)
 				debug_mode=1
@@ -661,9 +1071,12 @@ main() {
 		esac
 	done
 
-	# Export for use in run_test and display_result
+	# Export for use in run_test and subshells
 	VERBOSE=$verbose
-	INSTALL_LEVEL=$install_arg
+	export INSTALL_LEVEL=$install_arg
+	export PARALLEL_JOBS=$parallel_jobs
+	export REAL_HOME="$HOME"
+
 
 	# Determine modes to run
 	local modes_to_run
@@ -823,55 +1236,105 @@ main() {
 	local total_passed=0
 	local total_failed=0
 
+	# Initialize per-agent counters
 	for agent in $agents_to_run; do
-		print_section_header "$agent" "agent"
+		local agent_var=$(normalize_agent_name "$agent")
+		eval "agent_passed_$agent_var=0"
+		eval "agent_total_$agent_var=0"
+	done
 
-		local passed=0
-		local failed=0
+	# Parallel execution mode (works for any job count including 1)
+	init_job_pool
 
-		for test_name in $tests_to_run; do
-			for mode in $modes_to_run; do
-				# Skip tests based on name prefix:
-				#   global-*   → only run in global mode
-				#   project-*  → only run in project mode
-				#   combined-* → only run in combined mode
-				case "$test_name" in
-					global-*)   [ "$mode" != "global" ] && continue ;;
-					project-*)  [ "$mode" != "project" ] && continue ;;
-					combined-*) [ "$mode" != "combined" ] && continue ;;
-				esac
-
-				# Build display name for running state
-				local display_name="$test_name"
-				if [ "$SHOW_MODE" -eq 1 ]; then
-					display_name="$test_name [$(c option "$mode")]"
-				fi
-
-				print_test_running "$display_name"
-
-				if run_test "$agent" "$test_name" "$mode"; then
-					passed=$((passed + 1))
-					total_passed=$((total_passed + 1))
-					result=0
-				else
-					failed=$((failed + 1))
-					total_failed=$((total_failed + 1))
-					result=1
-				fi
-
-				printf "\r"
-				display_result "$test_name" "$result" "$mode"
+		# Count total tests and calculate column widths
+		local total_tests=0
+		COL_WIDTH_TEST=0
+		COL_WIDTH_MODE=0
+		COL_WIDTH_AGENT=0
+		for agent in $agents_to_run; do
+			local agent_len=${#agent}
+			[ "$agent_len" -gt "$COL_WIDTH_AGENT" ] && COL_WIDTH_AGENT=$agent_len
+			for test_name in $tests_to_run; do
+				local test_len=${#test_name}
+				[ "$test_len" -gt "$COL_WIDTH_TEST" ] && COL_WIDTH_TEST=$test_len
+				for mode in $modes_to_run; do
+					case "$test_name" in
+						global-*)   [ "$mode" != "global" ] && continue ;;
+						project-*)  [ "$mode" != "project" ] && continue ;;
+						combined-*) [ "$mode" != "combined" ] && continue ;;
+					esac
+					local mode_len=${#mode}
+					[ "$mode_len" -gt "$COL_WIDTH_MODE" ] && COL_WIDTH_MODE=$mode_len
+					total_tests=$((total_tests + 1))
+				done
 			done
 		done
 
-		local agent_var=$(normalize_agent_name "$agent")
-		eval "agent_passed_$agent_var=$passed"
-		eval "agent_total_$agent_var=$((passed + failed))"
-	done
+		# Set global for wait_for_slot to use
+		TOTAL_TESTS=$total_tests
+
+		printf "\nRunning %b tests with %b parallel jobs…\n\n" "$(c heading "$total_tests")" "$(c heading "$PARALLEL_JOBS")"
+
+		# Print column headers
+		local header_test=$(printf "%-${COL_WIDTH_TEST}s" "TEST")
+		local header_mode=$(printf "%-${COL_WIDTH_MODE}s" "MODE")
+		local header_agent=$(printf "%-${COL_WIDTH_AGENT}s" "AGENT")
+		printf "  %b  %b  %b\n" "$(c heading "$header_test")" "$(c heading "$header_mode")" "$(c heading "$header_agent")"
+
+		# Start all tests
+		for agent in $agents_to_run; do
+			for test_name in $tests_to_run; do
+				for mode in $modes_to_run; do
+					case "$test_name" in
+						global-*)   [ "$mode" != "global" ] && continue ;;
+						project-*)  [ "$mode" != "project" ] && continue ;;
+						combined-*) [ "$mode" != "combined" ] && continue ;;
+					esac
+
+					wait_for_slot
+					start_test_job "$agent" "$test_name" "$mode"
+
+					# Update running block
+					clear_running_block
+					print_running_block "$total_tests" "$COMPLETED_COUNT"
+
+					# Poll for completed tests
+					poll_completed_tests "$total_tests"
+				done
+			done
+		done
+
+		# Wait for remaining tests to complete
+		while [ "$(count_running_jobs)" -gt 0 ]; do
+			sleep 0.05
+			# Only redraw if spinner changed (to reduce flicker)
+			if advance_spinner; then
+				print_running_block "$total_tests" "$COMPLETED_COUNT"
+			fi
+			poll_completed_tests "$total_tests"
+		done
+
+		# Final poll to catch any remaining completions
+		clear_running_block
+		poll_completed_tests "$total_tests"
+
+		# Count results from result files
+		for status_file in "$RESULTS_DIR"/*.status; do
+			[ -f "$status_file" ] || continue
+			local status=$(cat "$status_file")
+			if [ "$status" = "pass" ]; then
+				total_passed=$((total_passed + 1))
+			else
+				total_failed=$((total_failed + 1))
+			fi
+		done
+
+		cleanup_job_pool
 
 	# Display summary
 	local total=$((total_passed + total_failed))
 
+	printf "\n"
 	if [ "$total_passed" -eq "$total" ]; then
 		printf "$(c success %d/%d passed)\n" "$total_passed" "$total"
 	else
@@ -890,8 +1353,6 @@ main() {
 			fi
 		done
 	fi
-
-	printf "\n"
 
 	# Exit with appropriate code
 	if [ "$total_failed" -gt 0 ]; then

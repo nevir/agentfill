@@ -32,8 +32,10 @@ tests/
 ./tests/test-unit.sh          # Run only unit tests
 ./tests/test-unit.sh -v       # Verbose mode
 
-./tests/test-agents.sh        # Run all agent integration tests
-./tests/test-agents.sh -v     # Verbose mode
+./tests/test-agents.sh        # Run all agent integration tests (4 parallel by default)
+./tests/test-agents.sh -j 1   # Sequential execution
+./tests/test-agents.sh -j 8   # Run 8 tests at once
+./tests/test-agents.sh -v     # Verbose mode (disables parallel)
 ./tests/test-agents.sh claude # Run tests for specific agent
 ```
 
