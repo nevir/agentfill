@@ -8,6 +8,22 @@
 
 cd "$CLAUDE_PROJECT_DIR"
 agent_files=$(find . -name "AGENTS.md" -type f)
+
+# Check for global AGENTS.md if global install exists
+# Detection: check if universal-agents is installed globally by checking for global polyfill directory
+has_global_agentsmd=0
+if [ -d "$HOME/.agents/polyfills" ] && [ -f "$HOME/AGENTS.md" ]; then
+has_global_agentsmd=1
+# Add to list if we have project files
+if [ -n "$agent_files" ]; then
+agent_files="$HOME/AGENTS.md
+$agent_files"
+else
+agent_files="$HOME/AGENTS.md"
+fi
+fi
+
+# Exit if no AGENTS.md files found
 [ -z "$agent_files" ] && exit 0
 
 cat <<end_context
@@ -32,16 +48,23 @@ NON-NEGOTIABLE: When working with any file or directory within the project:
    AGENTS.md file that is CLOSEST (most specific) to that location. More
    specific instructions OVERRIDE more general ones.
 
+   Precedence order (from lowest to highest priority):
+   - Global AGENTS.md (~/AGENTS.md) - lowest priority
+   - Project root AGENTS.md (./AGENTS.md)
+   - Nested AGENTS.md files - highest priority (closest to the file)
+
    <example>
      Project structure:
-       AGENTS.md
+       ~/AGENTS.md          (global)
+       ./AGENTS.md               (project root)
        subfolder/
          file.txt
-         AGENTS.md
+         AGENTS.md               (nested)
 
      When working with "subfolder/file.txt":
-       - Instructions from "subfolder/AGENTS.md" take precedence
-       - Instructions from root "AGENTS.md" apply only if not overridden
+       - Instructions from "subfolder/AGENTS.md" take highest precedence
+       - Instructions from "./AGENTS.md" override global
+       - Instructions from "~/AGENTS.md" apply only if not overridden
    </example>
 
 3. If there is a root ./AGENTS.md file, ALWAYS apply its instructions to ALL
@@ -50,13 +73,25 @@ NON-NEGOTIABLE: When working with any file or directory within the project:
 </agentsmd_instructions>
 end_context
 
-# If there is a root AGENTS.md, load it now because it always applies.
+# Load global AGENTS.md first (lowest precedence)
+if [ "$has_global_agentsmd" -eq 1 ]; then
+cat <<-end_global_context
+
+The content of ~/AGENTS.md is as follows:
+
+<agentsmd path="~/AGENTS.md" absolute_path="$HOME/AGENTS.md">
+$(cat "$HOME/AGENTS.md")
+</agentsmd>
+end_global_context
+fi
+
+# If there is a root AGENTS.md, load it now (higher precedence than global)
 if [ -f "./AGENTS.md" ]; then
 cat <<-end_root_context
 
 The content of ./AGENTS.md is as follows:
 
-<agentsmd path="./AGENTS.md">
+<agentsmd path="./AGENTS.md" absolute_path="$CLAUDE_PROJECT_DIR/AGENTS.md">
 $(cat "./AGENTS.md")
 </agentsmd>
 end_root_context

@@ -148,6 +148,42 @@ _Why this works: Without AGENTS.md, agents naturally answer "4". Only with AGENT
 
 This ensures the test genuinely validates that AGENTS.md was loaded and honored, rather than testing the agent's search capabilities.
 
+### 7. Self-Contained AGENTS.md Files
+
+**Critical for multi-file tests:** Each AGENTS.md file in a test must be completely self-contained and must NOT reference other AGENTS.md files, contexts, or test infrastructure.
+
+**Bad - References other contexts:**
+
+```markdown
+# sandbox/AGENTS.md
+
+The project suffix is: PROJECT
+
+This should be combined with the user prefix from the global AGENTS.md.
+```
+
+_Problem: Mentions "global AGENTS.md" - agent could search for this and find the answer without the file being properly loaded._
+
+**Good - Self-contained:**
+
+```markdown
+# sandbox/AGENTS.md
+
+When asked about code parts, the **project suffix** is: `PROJECT`
+
+When combining codes, use the format: `{prefix}_{suffix}`
+```
+
+_Why this works: Provides only the information this file should contribute, without referencing other files._
+
+**Design principle for multi-file tests:**
+1. Each AGENTS.md provides a distinct piece of information
+2. No file mentions other files, contexts, or test modes
+3. Agent must have ALL files loaded to answer correctly
+4. Searching the codebase won't reveal the complete answer
+
+This ensures tests verify the polyfill's loading mechanism, not the agent's ability to find cross-references.
+
 ## File Structure
 
 Each test consists of:
