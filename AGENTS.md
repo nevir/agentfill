@@ -25,6 +25,23 @@ Read the relevant documentation in `docs/agents/<Agent>.md` first.
 - Keep documentation accurate and up-to-date
 - Add sources for new information
 
+## Test Suite Context
+
+When working on test files or testing-related code (anything in the `tests/` directory), you should read **[tests/AGENTS.md](tests/AGENTS.md)** to understand:
+
+- Test suite organization and structure
+- How to run different test categories (unit tests, agent integration tests)
+- Shared test utilities in `tests/_common/`
+- Test isolation principles and why they matter
+- Guidelines for writing new tests
+
+This applies when:
+- Modifying existing test files
+- Creating new tests
+- Debugging test failures
+- Working on test runner scripts
+- Understanding test output or behavior
+
 ## Shell Script Style Guide
 
 This project follows strict shell scripting conventions to ensure portability, readability, and maintainability.
