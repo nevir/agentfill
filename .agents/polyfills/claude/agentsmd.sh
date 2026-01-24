@@ -49,13 +49,13 @@ NON-NEGOTIABLE: When working with any file or directory within the project:
    specific instructions OVERRIDE more general ones.
 
    Precedence order (from lowest to highest priority):
-   - Global AGENTS.md (\$HOME/AGENTS.md) - lowest priority
+   - Global AGENTS.md (~/AGENTS.md) - lowest priority
    - Project root AGENTS.md (./AGENTS.md)
    - Nested AGENTS.md files - highest priority (closest to the file)
 
    <example>
      Project structure:
-       \$HOME/AGENTS.md          (global)
+       ~/AGENTS.md          (global)
        ./AGENTS.md               (project root)
        subfolder/
          file.txt
@@ -64,7 +64,7 @@ NON-NEGOTIABLE: When working with any file or directory within the project:
      When working with "subfolder/file.txt":
        - Instructions from "subfolder/AGENTS.md" take highest precedence
        - Instructions from "./AGENTS.md" override global
-       - Instructions from "\$HOME/AGENTS.md" apply only if not overridden
+       - Instructions from "~/AGENTS.md" apply only if not overridden
    </example>
 
 3. If there is a root ./AGENTS.md file, ALWAYS apply its instructions to ALL
@@ -77,9 +77,9 @@ end_context
 if [ "$has_global_agentsmd" -eq 1 ]; then
 	cat <<-end_global_context
 
-		The content of \$HOME/AGENTS.md is as follows:
+		The content of ~/AGENTS.md is as follows:
 
-		<agentsmd path="\$HOME/AGENTS.md" absolute_path="$HOME/AGENTS.md">
+		<agentsmd path="~/AGENTS.md" absolute_path="$HOME/AGENTS.md">
 		$(cat "$HOME/AGENTS.md")
 		</agentsmd>
 	end_global_context
