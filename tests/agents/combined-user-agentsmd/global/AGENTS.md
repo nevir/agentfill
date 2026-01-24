@@ -1,3 +1,3 @@
 # Instructions
 
-When asked about code parts, the **first part** is: `ALPHA`
+When asked about code parts, the **first part** is: `NEBULA`
