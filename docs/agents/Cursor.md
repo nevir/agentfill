@@ -2,7 +2,14 @@
 
 ## Overview
 
-Cursor provides both an IDE and a CLI (cursor-agent). The IDE (Cursor 1.7+) has comprehensive hooks support, while the CLI currently lacks hooks. Both support the Agent Skills specification natively.
+Cursor provides both an IDE and a standalone CLI agent. These are independent products with different capabilities:
+
+- **Cursor IDE** (Cursor 1.7+): Comprehensive hooks support, full agent integration
+- **Cursor CLI** (`cursor-agent` binary): No hooks support, limited configuration
+
+Both support the Agent Skills specification natively.
+
+**Universal-agents naming**: In universal-agents, we use `cursor-cli` and `cursor-ide` to distinguish between these two independent products (e.g., `./test-agents.sh cursor-cli`).
 
 **AGENTS.md Support Status**:
 - **Documentation claims**: Automatic loading of `AGENTS.md` and `CLAUDE.md` files
@@ -44,7 +51,7 @@ All other CLI settings must be set globally.
 
 ### IDE Hooks (Cursor 1.7+)
 
-The Cursor IDE has comprehensive hooks support, but the CLI (cursor-agent) does **not** yet support hooks.
+The Cursor IDE has comprehensive hooks support, but the CLI (`cursor-agent` binary) does **not** yet support hooks.
 
 #### Available IDE Hook Events
 
