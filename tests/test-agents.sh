@@ -22,18 +22,29 @@ cd "$REPO_ROOT"
 # Define agent-specific commands and settings paths
 # This centralizes agent configuration so new agents only need to be added here
 
-KNOWN_AGENTS="claude codex copilot cursor-agent gemini"
+KNOWN_AGENTS="claude codex copilot cursor-cli gemini"
 
 agent_command() {
 	local agent="$1"
 	local prompt="$2"
 
 	case "$agent" in
-		claude)       echo "echo \"$prompt\" | claude --print" ;;
-		codex)        echo "echo \"$prompt\" | codex exec -" ;;
-		copilot)      echo "copilot -p \"$prompt\"" ;;
-		cursor-agent) echo "echo \"$prompt\" | cursor-agent --print" ;;
-		gemini)       echo "echo \"$prompt\" | gemini" ;;
+		claude)     echo "echo \"$prompt\" | claude --print" ;;
+		codex)      echo "echo \"$prompt\" | codex exec -" ;;
+		copilot)    echo "copilot -p \"$prompt\"" ;;
+		cursor-cli) echo "echo \"$prompt\" | cursor-agent --print" ;;
+		gemini)     echo "echo \"$prompt\" | gemini" ;;
+	esac
+}
+
+# Get the binary/command name for an agent (for command detection)
+# This maps agent names to their actual CLI binary names
+agent_binary() {
+	local agent="$1"
+
+	case "$agent" in
+		cursor-cli) echo "cursor-agent" ;;
+		*)          echo "$agent" ;;
 	esac
 }
 
@@ -41,24 +52,19 @@ agent_command() {
 agent_interactive_command() {
 	local agent="$1"
 
-	case "$agent" in
-		claude)       echo "claude" ;;
-		codex)        echo "codex" ;;
-		copilot)      echo "copilot" ;;
-		cursor-agent) echo "cursor-agent" ;;
-		gemini)       echo "gemini" ;;
-	esac
+	# For most agents, binary name matches agent name
+	agent_binary "$agent"
 }
 
 agent_settings_path() {
 	local agent="$1"
 
 	case "$agent" in
-		claude)       echo "$HOME/.claude/settings.json" ;;
-		codex)        echo "$HOME/.codex/config.toml" ;;
-		copilot)      echo "$HOME/.copilot/config.json" ;;
-		cursor-agent) echo "$HOME/.cursor-agent/settings.json" ;;
-		gemini)       echo "$HOME/.gemini/settings.json" ;;
+		claude)     echo "$HOME/.claude/settings.json" ;;
+		codex)      echo "$HOME/.codex/config.toml" ;;
+		copilot)    echo "$HOME/.copilot/config.json" ;;
+		cursor-cli) echo "$HOME/.cursor-agent/settings.json" ;;
+		gemini)     echo "$HOME/.gemini/settings.json" ;;
 	esac
 }
 
@@ -67,11 +73,11 @@ agent_config_dir() {
 	local agent="$1"
 
 	case "$agent" in
-		claude)       echo ".claude" ;;
-		codex)        echo ".codex" ;;
-		copilot)      echo ".copilot" ;;
-		cursor-agent) echo ".cursor-agent" ;;
-		gemini)       echo ".gemini" ;;
+		claude)     echo ".claude" ;;
+		codex)      echo ".codex" ;;
+		copilot)    echo ".copilot" ;;
+		cursor-cli) echo ".cursor-agent" ;;
+		gemini)     echo ".gemini" ;;
 	esac
 }
 
@@ -80,11 +86,11 @@ agent_skills_dir() {
 	local agent="$1"
 
 	case "$agent" in
-		claude)       echo ".claude/skills" ;;
-		codex)        echo ".codex/skills" ;;
-		copilot)      echo ".github/skills" ;;
-		cursor-agent) echo ".cursor-agent/skills" ;;
-		gemini)       echo ".gemini/skills" ;;
+		claude)     echo ".claude/skills" ;;
+		codex)      echo ".codex/skills" ;;
+		copilot)    echo ".github/skills" ;;
+		cursor-cli) echo ".cursor-agent/skills" ;;
+		gemini)     echo ".gemini/skills" ;;
 	esac
 }
 
@@ -182,7 +188,9 @@ extract_answer() {
 discover_agents() {
 	agents=""
 	for agent in $KNOWN_AGENTS; do
-		if command -v "$agent" >/dev/null 2>&1; then
+		local binary
+		binary=$(agent_binary "$agent")
+		if command -v "$binary" >/dev/null 2>&1; then
 			agents="$agents $agent"
 		fi
 	done
@@ -545,7 +553,7 @@ show_help() {
 	printf "$(c heading Options:)\n"
 	printf "  $(c flag -h), $(c flag --help)        Show this help message\n"
 	printf "  $(c flag -v), $(c flag --verbose)     Show full output for all tests\n"
-	printf "  $(c flag -j), $(c flag --jobs) $(c option N)     Run N tests in parallel (default: $(c option 4))\n"
+	printf "  $(c flag -j), $(c flag --jobs) $(c option N)      Run N tests in parallel (default: $(c option 4))\n"
 	printf "  $(c flag --debug) $(c option MODE)      Run one test interactively for debugging\n"
 	printf "  $(c flag --mode) $(c option MODE)       Installation mode (default: $(c option all))\n"
 	printf "                      $(c option project):  Project-level install only\n"
@@ -559,9 +567,9 @@ show_help() {
 
 	printf "$(c heading Test Naming:)\n"
 	printf "  Tests run in all modes by default. Use prefixes to restrict:\n"
-	printf "    $(c test project-*)   Only runs in project mode\n"
-	printf "    $(c test global-*)    Only runs in global mode\n"
-	printf "    $(c test combined-*)  Only runs in combined mode\n\n"
+	printf "    $(c test project-*)    Only runs in project mode\n"
+	printf "    $(c test global-*)     Only runs in global mode\n"
+	printf "    $(c test combined-*)   Only runs in combined mode\n\n"
 
 	printf "$(c heading Examples:)\n"
 	printf "  $(c command test-agents.sh)                                       # All tests, 4 parallel (default)\n"
@@ -574,10 +582,12 @@ show_help() {
 
 	printf "$(c heading Agents:)\n"
 	for agent in $KNOWN_AGENTS; do
-		if command -v "$agent" >/dev/null 2>&1; then
-			printf "  $(c agent %-14s) $(c success ✓ available)\n" "$agent"
+		local binary
+		binary=$(agent_binary "$agent")
+		if command -v "$binary" >/dev/null 2>&1; then
+			printf "  $(c agent %-13s) $(c success ✓ available)\n" "$agent"
 		else
-			printf "  $(c agent %-14s) $(c error ✗ not found)\n" "$agent"
+			printf "  $(c agent %-13s) $(c error ✗ not found)\n" "$agent"
 		fi
 	done
 
