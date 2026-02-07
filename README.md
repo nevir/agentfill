@@ -5,7 +5,7 @@ A "polyfill" that standardizes and centralizes [AGENTS.md](https://agents.md) co
 ## Installation
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/nevir/agentfill/main/install.sh | sh
+curl -fsSL https://agentfill.dev/install | sh
 ```
 
 ## What This Does
