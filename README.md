@@ -1,16 +1,16 @@
 # agentfill
 
-A "polyfill" that standardizes and centralizes [AGENTS.md](https://agents.md) configuration and [Agent Skills](https://agentskills.io) support within your repository.
+A "polyfill" that standardizes [AGENTS.md](https://agents.md) configuration and [Agent Skills](https://agentskills.io) support across Claude Code, Gemini CLI, Cursor, and beyond.
 
-## Installation
+## One Install To Fill Them All
 
 ```sh
 curl -fsSL https://agentfill.dev/install | sh
 ```
 
-## What This Does
+Most AI coding agents have incomplete or broken `AGENTS.md` support natively. agentfill polyfills that support so you can rely on consistent behavior, no matter which agent you use.
 
-Brings standardized and centralized support for [AGENTS.md](https://agents.md) and [Agent Skills](https://agentskills.io) to major AI coding agents. Most agents have incomplete or broken support natively; this "polyfills" support so that you can rely on consistent behavior, no matter which agent you use.
+Install **globally** to get `AGENTS.md` support everywhere you use your agents, or **per-project** to check it into your repo so everyone on the team benefits.
 
 📄 **AGENTS.md support**: Agents automatically read `AGENTS.md` files instead of (or in addition to) their proprietary formats
 
