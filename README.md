@@ -10,35 +10,29 @@ curl -fsSL https://raw.githubusercontent.com/agentsmd/universal-agents/main/inst
 
 ## What This Does
 
-Brings standardized and centralized support for [AGENTS.md](https://agents.md) and [Agent Skills](https://agentskills.io) to major AI coding agents. Most agents have incomplete or broken support natively - this fixes that.
+Brings standardized and centralized support for [AGENTS.md](https://agents.md) and [Agent Skills](https://agentskills.io) to major AI coding agents. Most agents have incomplete or broken support natively; this "polyfills" support so that you can rely on consistent behavior, no matter which agent you use.
 
-**AGENTS.md features:**
+📄 **AGENTS.md support**: Agents automatically read `AGENTS.md` files instead of (or in addition to) their proprietary formats
 
-📄 **Basic support**: Agents automatically read AGENTS.md files instead of (or in addition to) their proprietary formats
+🪺 **Nested precedence**: `AGENTS.md` files in subdirectories apply and layer with proper precedence (closer = higher priority)
 
-🪺 **Nested**: Nested AGENTS.md files apply with proper precedence (closer = higher priority)
-
-🎯 **Selective**: Only loads relevant AGENTS.md files, not all of them (essential for large monorepos)
-
-**Skills features:**
+🎯 **Selective loading**: Only loads relevant `AGENTS.md` files, not all of them (e.g. to minimize context bloat)
 
 🔧 **Shared skills**: Store skills once in `.agents/skills/`, use across all agents
-
-♻️ **Native integration**: Skills symlink to each agent's native directory for hot reload and discovery
 
 ## Philosophy
 
 AI coding agents shouldn't fragment your configuration. This project enables:
 
-- **Universal format** - Write AGENTS.md once, use it across major AI agents (Claude Code, Gemini CLI)
+- **Universal format** - Write `AGENTS.md` once, use it across major AI agents (Claude Code, Gemini CLI)
 - **Standard locations** - `.agents/` and `AGENTS.md` files in predictable places, not scattered proprietary formats
-- **No rebuild step** - Edit AGENTS.md files, they just work. No commands to run after changes.
+- **No rebuild step** - Edit `AGENTS.md` files, they just work. No commands to run after changes.
 - **Native behavior** - Leverage each agent's built-in features (hot reload, skill discovery, etc.)
 - **Simple and portable** - Shell scripts only. Works everywhere with no dependencies.
 
 ## Native Support
 
-Out of the box, most agents have incomplete or missing AGENTS.md support:
+Out of the box, most agents have incomplete or missing `AGENTS.md` support:
 
 | Agent | 📄 Basic | 🪺 Nested | 🎯 Selective | 🔧 Skills |
 |-------|----------|-----------|--------------|-----------|
@@ -48,15 +42,15 @@ Out of the box, most agents have incomplete or missing AGENTS.md support:
 
 ## How It Works
 
-**Claude Code:** A [SessionStart hook](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/hooks) discovers all AGENTS.md files in the project and injects them into context with precedence instructions. The root AGENTS.md is pre-loaded; nested files are loaded on-demand as Claude works in specific directories. Skills are symlinked from `.agents/skills/` to `.claude/skills/` for native discovery and hot reloading.
+**Claude Code:** A [SessionStart hook](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/hooks) discovers all `AGENTS.md` files in the project and injects them into context with precedence instructions. The root `AGENTS.md` is pre-loaded; nested files are loaded on-demand as Claude works in specific directories. Skills are symlinked from `.agents/skills/` to `.claude/skills/` for native discovery and hot reloading.
 
-**Cursor IDE:** A [sessionStart hook](https://cursor.com/docs/agent/hooks) discovers all AGENTS.md files and injects them into context via JSON `additional_context`. The root AGENTS.md is pre-loaded; nested files are loaded on-demand as Cursor works in specific directories. Skills are symlinked from `.agents/skills/` to `.cursor/skills/` for native discovery.
+**Cursor IDE:** A [sessionStart hook](https://cursor.com/docs/agent/hooks) discovers all `AGENTS.md` files and injects them into context via JSON `additional_context`. The root `AGENTS.md` is pre-loaded; nested files are loaded on-demand as Cursor works in specific directories. Skills are symlinked from `.agents/skills/` to `.cursor/skills/` for native discovery.
 
-**Gemini CLI:** Gemini's [`context.fileName`](https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html) setting is configured to load `AGENTS.md` alongside `GEMINI.md` - Gemini natively walks the directory tree and applies them with proper precedence, so no polyfill is needed for AGENTS.md loading. Skills are symlinked from `.agents/skills/` to `.gemini/skills/` for native discovery.
+**Gemini CLI:** Gemini's [`context.fileName`](https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html) setting is configured to load `AGENTS.md` alongside `GEMINI.md` - Gemini natively walks the directory tree and applies them with proper precedence, so no polyfill is needed for `AGENTS.md` loading. Skills are symlinked from `.agents/skills/` to `.gemini/skills/` for native discovery.
 
 ## Usage
 
-Create AGENTS.md files anywhere in your project. They'll be loaded automatically with proper scoping:
+Create `AGENTS.md` files anywhere in your project. They'll be loaded automatically with proper scoping:
 
 ```
 project/
@@ -66,7 +60,7 @@ project/
         └── AGENTS.md      # Applies to API work (overrides project-wide)
 ```
 
-When working in `src/api/`, both AGENTS.md files apply - with the API-specific one taking precedence for conflicts (🪺 **nested**).
+When working in `src/api/`, both `AGENTS.md` files apply - with the API-specific one taking precedence for conflicts (🪺 **nested**).
 
 Agents load context only for the directories you're working in, keeping token usage efficient even in large projects (🎯 **selective**).
 
@@ -87,20 +81,6 @@ Skills are symlinked to each agent's native skills directory (e.g., `.claude/ski
 - Cross-agent compatibility
 
 See [Agent Skills Specification](https://agentskills.io/specification) for SKILL.md format.
-
-## Troubleshooting
-
-**Skills not showing up?**
-- Check that the symlink exists (e.g., `.claude/skills` -> `../.agents/skills`)
-- Try restarting the agent session
-- Note: Claude Code's `/skills` command has a [display bug](https://github.com/anthropics/claude-code/issues/14836) with symlinked directories - skills still work
-
-**"Warning: directory exists" during install?**
-- Move existing skills from `.claude/skills/` to `.agents/skills/`
-- Re-run the install script
-
-**Global install first run?**
-- After installing globally, restart your agent session for hooks to take effect
 
 ## License
 
