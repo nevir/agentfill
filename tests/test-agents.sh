@@ -131,6 +131,13 @@ copy_agent_credentials() {
 			[ -f "$real_home/.gemini.json" ] && cp "$real_home/.gemini.json" "$temp_home/"
 			;;
 	esac
+
+	# Symlink macOS Keychains so agents that use the system keychain
+	# (e.g. cursor-agent stores "cursor-user") can still authenticate
+	if [ -d "$real_home/Library/Keychains" ]; then
+		mkdir -p "$temp_home/Library"
+		ln -s "$real_home/Library/Keychains" "$temp_home/Library/Keychains"
+	fi
 }
 
 # Get API key from system keychain for an agent
@@ -682,12 +689,15 @@ show_help() {
 		else
 			printf "  $(c agent %-13s) $(c error ✗ not found)\n" "$agent"
 		fi
+		# Insert cursor-ide in alphabetical position (after cursor-cli)
+		if [ "$agent" = "cursor-cli" ]; then
+			if command -v cursor >/dev/null 2>&1; then
+				printf "  $(c agent %-13s) $(c success ✓ available)  Opens Cursor IDE for testing\n" "cursor-ide"
+			else
+				printf "  $(c agent %-13s) $(c error ✗ not found)  Opens Cursor IDE for testing\n" "cursor-ide"
+			fi
+		fi
 	done
-	if command -v cursor >/dev/null 2>&1; then
-		printf "  $(c agent %-13s) $(c success ✓ available)  Opens Cursor IDE for testing\n" "cursor-ide"
-	else
-		printf "  $(c agent %-13s) $(c error ✗ not found)  Opens Cursor IDE for testing\n" "cursor-ide"
-	fi
 	printf "  $(c agent %-13s) $(c success ✓ always)    Test any agent interactively\n" "manual"
 
 	printf "\n$(c heading Tests:)\n"
@@ -1409,6 +1419,12 @@ main() {
 		manual_temp_dir=$(mktemp -d -t "universal-agents-test-XXXXXX")
 		local manual_temp_home
 		manual_temp_home=$(mktemp -d -t "universal-agents-home-XXXXXX")
+
+		# Symlink macOS Keychains for agents that use the system keychain
+		if [ -d "$HOME/Library/Keychains" ]; then
+			mkdir -p "$manual_temp_home/Library"
+			ln -s "$HOME/Library/Keychains" "$manual_temp_home/Library/Keychains"
+		fi
 
 		printf "\n%b %b tests in %b mode\n" "$(c heading 'Manual:')" "$(c heading "$total_tests")" "$(c agent "$manual_agent")"
 		printf "Tests run sequentially — paste each agent response when prompted.\n\n"
