@@ -35,7 +35,7 @@ Claude Code sets the following environment variables during execution:
 
 To detect if running under Claude Code in bash commands:
 
-```bash
+```sh
 if [ "$CLAUDECODE" = "1" ]; then
 	echo "Running in Claude Code"
 fi

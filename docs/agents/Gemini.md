@@ -235,7 +235,7 @@ my-extension/
 
 ### Extension Installation
 
-```bash
+```sh
 # From GitHub
 gemini extensions install https://github.com/user/repo
 

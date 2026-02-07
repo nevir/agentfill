@@ -4,7 +4,7 @@ A "polyfill" that standardizes and centralizes [AGENTS.md](https://agents.md) co
 
 ## Installation
 
-```bash
+```sh
 curl -fsSL https://raw.githubusercontent.com/agentsmd/universal-agents/main/install.sh | sh
 ```
 

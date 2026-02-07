@@ -96,7 +96,7 @@ The AGENTS.md specification includes:
 **Approach**: Polyfill/hook-based implementation that adds AGENTS.md support to agents that don't natively support it (or have incomplete support).
 
 **Installation**:
-```bash
+```sh
 curl -fsSL https://raw.githubusercontent.com/agentsmd/universal-agents/main/install.sh | sh
 ```
 
@@ -145,7 +145,7 @@ curl -fsSL https://raw.githubusercontent.com/agentsmd/universal-agents/main/inst
 **Approach**: Centralized rule management with automatic distribution to tool-specific configuration files.
 
 **Installation**:
-```bash
+```sh
 npm i @intellectronica/ruler
 ```
 
@@ -185,7 +185,7 @@ npm i @intellectronica/ruler
 **Approach**: Centralized config management with automatic distribution to tool-specific formats.
 
 **Installation**:
-```bash
+```sh
 npm i rulesync
 # or
 brew install rulesync
@@ -231,7 +231,7 @@ brew install rulesync
 **Approach**: CLI-based skill management implementing Anthropic's Agent Skills specification for universal use.
 
 **Installation**:
-```bash
+```sh
 npm i -g openskills
 ```
 
@@ -270,7 +270,7 @@ npm i -g openskills
 **Approach**: Create symbolic links from AGENTS.md to tool-specific files.
 
 **Implementation**:
-```bash
+```sh
 # Claude Code
 ln -s AGENTS.md CLAUDE.md
 

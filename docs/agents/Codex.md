@@ -108,7 +108,7 @@ Codex discovers skills by scanning for any `SKILL.md` file within the skills dir
 
 The `CODEX_HOME` environment variable controls the base directory (defaults to `~/.codex`). Skills are then stored in `$CODEX_HOME/skills/`.
 
-```bash
+```sh
 export CODEX_HOME=/custom/path
 # Skills go in /custom/path/skills/
 ```
@@ -136,7 +136,7 @@ Codex has a built-in `$skill-installer` skill that can install from:
 - Any GitHub URL (public or private repos)
 - Local paths (manual installation by copying)
 
-```bash
+```sh
 # Install from GitHub
 $skill-installer install https://github.com/openai/skills/tree/main/skills/create-plan
 
