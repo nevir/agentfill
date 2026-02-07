@@ -12,9 +12,16 @@ Both support the Agent Skills specification natively.
 **Universal-agents naming**: In universal-agents, we use `cursor-cli` and `cursor-ide` to distinguish between these two independent products (e.g., `./test-agents.sh cursor-cli`).
 
 **AGENTS.md Support Status**:
-- **Documentation claims**: Automatic loading of `AGENTS.md` and `CLAUDE.md` files
-- **Actual behavior** (as of Jan 2026): AGENTS.md is **not preloaded in context automatically**. Users must manually reference the file in each conversation for it to be recognized.
-- **Nested AGENTS.md**: Not supported - hierarchy and selective loading do not work
+
+| Feature | Cursor IDE | Cursor CLI |
+|---------|------------|------------|
+| 📄 **Basic support** | ✅ Reads root AGENTS.md | ❌ Not auto-loaded |
+| 🪺 **Nested** | ❌ | ❌ |
+| 🎯 **Selective** | ✅ (via CLAUDE.md mechanism) | ❌ |
+| 🔧 **Skills** | ✅ Native | ✅ Native |
+
+- **Cursor IDE**: Reads root-level AGENTS.md files automatically. Supports selective loading (same mechanism as CLAUDE.md). Does not support nested AGENTS.md files.
+- **Cursor CLI**: AGENTS.md is **not preloaded in context automatically**. Users must manually reference the file in each conversation.
 
 **Status**: Partial support in universal-agents (limited by CLI limitations)
 
@@ -138,11 +145,17 @@ Rules are automatically loaded based on file patterns.
 
 ## Context Files
 
-Cursor CLI context loading (as of Jan 2026):
-- `AGENTS.md` - **Not automatically loaded** (must be manually referenced despite documentation claims)
-- `CLAUDE.md` - **Not automatically loaded** (must be manually referenced despite documentation claims)
-- `.cursor/rules/` - Automatically loaded rule files
-- **Nested AGENTS.md**: Not supported - only root-level files can be manually referenced
+### Cursor IDE (as of Feb 2026)
+- `AGENTS.md` - ✅ Root-level file automatically loaded
+- `CLAUDE.md` - ✅ Automatically loaded with selective loading support
+- `.cursor/rules/` - ✅ Automatically loaded rule files
+- **Nested AGENTS.md**: ❌ Not supported - only root-level file is loaded
+
+### Cursor CLI (as of Jan 2026)
+- `AGENTS.md` - ❌ Not automatically loaded (must be manually referenced)
+- `CLAUDE.md` - ❌ Not automatically loaded (must be manually referenced)
+- `.cursor/rules/` - ✅ Automatically loaded rule files
+- **Nested AGENTS.md**: ❌ Not supported
 
 ## Extension System
 

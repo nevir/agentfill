@@ -633,7 +633,7 @@ show_help() {
 	printf "Test runner for AGENTS.md polyfill configuration.\n\n"
 
 	printf "$(c heading Arguments:)\n"
-	printf "  $(c agent AGENT)    Agent(s) to test: $(c_list agent $KNOWN_AGENTS manual), $(c agent all) (default: $(c agent all))\n"
+	printf "  $(c agent AGENT)    Agent(s) to test: $(c_list agent $KNOWN_AGENTS cursor-ide manual), $(c agent all) (default: $(c agent all))\n"
 	printf "  $(c test TEST)     Test(s) to run (default: $(c test all))\n\n"
 
 	printf "Arguments are auto-detected as agents or tests:\n"
@@ -670,6 +670,7 @@ show_help() {
 	printf "  $(c command test-agents.sh) $(c agent claude) $(c test basic-support)                  # Specific test on Claude\n"
 	printf "  $(c command test-agents.sh) $(c flag --mode) $(c option global)                         # All tests in global mode only\n"
 	printf "  $(c command test-agents.sh) $(c flag --debug) $(c option global) $(c agent claude) $(c test global-skills)   # Debug interactively\n"
+	printf "  $(c command test-agents.sh) $(c agent cursor-ide) $(c test basic-support)              # Opens Cursor IDE for testing\n"
 	printf "  $(c command test-agents.sh) $(c agent manual) $(c test basic-support)                 # Manual testing (any agent)\n\n"
 
 	printf "$(c heading Agents:)\n"
@@ -682,6 +683,11 @@ show_help() {
 			printf "  $(c agent %-13s) $(c error ✗ not found)\n" "$agent"
 		fi
 	done
+	if command -v cursor >/dev/null 2>&1; then
+		printf "  $(c agent %-13s) $(c success ✓ available)  Opens Cursor IDE for testing\n" "cursor-ide"
+	else
+		printf "  $(c agent %-13s) $(c error ✗ not found)  Opens Cursor IDE for testing\n" "cursor-ide"
+	fi
 	printf "  $(c agent %-13s) $(c success ✓ always)    Test any agent interactively\n" "manual"
 
 	printf "\n$(c heading Tests:)\n"
@@ -1204,10 +1210,10 @@ main() {
 	local available_agents=$(discover_agents)
 	local available_tests=$(discover_tests)
 
-	# Check if "manual" was explicitly requested (before agent validation)
+	# Check if a manual/interactive agent was explicitly requested (before agent validation)
 	local manual_requested=0
 	for arg in $agent_args; do
-		if [ "$arg" = "manual" ]; then
+		if [ "$arg" = "manual" ] || [ "$arg" = "cursor-ide" ]; then
 			manual_requested=1
 			break
 		fi
@@ -1240,12 +1246,16 @@ main() {
 			continue
 		fi
 
-		# Check if it's "manual" (special pseudo-agent, always available)
-		if [ "$arg" = "manual" ]; then
+		# Check if it's a manual/interactive pseudo-agent
+		if [ "$arg" = "manual" ] || [ "$arg" = "cursor-ide" ]; then
 			if [ $switched_to_tests -eq 1 ]; then
 				panic 2 show_usage "Agent $(c agent "'$arg'") specified after test names"
 			fi
-			agents="$agents manual"
+			# cursor-ide requires the cursor binary
+			if [ "$arg" = "cursor-ide" ] && ! command -v cursor >/dev/null 2>&1; then
+				panic 2 show_usage "$(c agent cursor-ide) requires $(c command cursor) on PATH"
+			fi
+			agents="$agents $arg"
 			continue
 		fi
 
@@ -1312,22 +1322,24 @@ main() {
 		agents_to_run="$agents"
 	fi
 
-	# Check if manual is in the agent list
+	# Check if a manual/interactive agent is in the agent list
+	local manual_agent=""
 	for agent in $agents_to_run; do
-		if [ "$agent" = "manual" ]; then
+		if [ "$agent" = "manual" ] || [ "$agent" = "cursor-ide" ]; then
+			manual_agent="$agent"
 			is_manual=1
 			break
 		fi
 	done
 
-	# Manual mode is exclusive — can't mix with real agents
+	# Manual/interactive agents are exclusive — can't mix with other agents
 	if [ "$is_manual" -eq 1 ]; then
 		local non_manual=""
 		for agent in $agents_to_run; do
-			[ "$agent" != "manual" ] && non_manual="$non_manual $agent"
+			[ "$agent" != "$manual_agent" ] && non_manual="$non_manual $agent"
 		done
 		if [ -n "$(trim "$non_manual")" ]; then
-			panic 2 show_usage "$(c agent manual) cannot be combined with other agents"
+			panic 2 show_usage "$(c agent "$manual_agent") cannot be combined with other agents"
 		fi
 	fi
 
@@ -1398,13 +1410,34 @@ main() {
 		local manual_temp_home
 		manual_temp_home=$(mktemp -d -t "universal-agents-home-XXXXXX")
 
-		printf "\n%b %b tests in %b mode\n" "$(c heading 'Manual:')" "$(c heading "$total_tests")" "$(c agent manual)"
+		printf "\n%b %b tests in %b mode\n" "$(c heading 'Manual:')" "$(c heading "$total_tests")" "$(c agent "$manual_agent")"
 		printf "Tests run sequentially — paste each agent response when prompted.\n\n"
 
 		printf "%b (run the agent from here):\n" "$(c heading 'Working directory')"
 		printf "  %s\n\n" "$manual_temp_dir"
 		printf "%b\n" "$(c heading 'HOME directory:')"
 		printf "  %s\n" "$manual_temp_home"
+
+		# Launch Cursor IDE for cursor-ide agent
+		if [ "$manual_agent" = "cursor-ide" ]; then
+			printf "\n%b\n" "$(c heading 'Launching Cursor IDE…')"
+			# Launch with a clean environment to avoid test runner state leaking
+			# into the IDE and its integrated terminal
+			env -i \
+				HOME="$manual_temp_home" \
+				USER="$USER" \
+				LOGNAME="$LOGNAME" \
+				SHELL="$SHELL" \
+				PATH="$(getconf PATH):/usr/local/bin:/opt/homebrew/bin:/opt/homebrew/sbin" \
+				LANG="${LANG:-en_US.UTF-8}" \
+				TMPDIR="$TMPDIR" \
+				TERM="${TERM:-xterm-256color}" \
+				__CF_USER_TEXT_ENCODING="${__CF_USER_TEXT_ENCODING:-}" \
+				XPC_FLAGS="${XPC_FLAGS:-}" \
+				XPC_SERVICE_NAME="${XPC_SERVICE_NAME:-}" \
+				SECURITYSESSIONID="${SECURITYSESSIONID:-}" \
+				cursor "$manual_temp_dir" &
+		fi
 
 		for test_name in $tests_to_run; do
 			for mode in $modes_to_run; do

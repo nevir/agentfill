@@ -40,12 +40,11 @@ AI coding agents shouldn't fragment your configuration. This project enables:
 
 Out of the box, most agents have incomplete or missing AGENTS.md support:
 
-| Feature | Claude Code | Gemini CLI |
-|---------|-------------|------------|
-| 📄 **Basic support** | ❌ | ⚠️ [Configurable](https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html) |
-| 🪺 **Nested** | ❌ | ✅ |
-| 🎯 **Selective** | ❌ | ❌ |
-| 🔧 **Skills** | ✅ [Native](https://agentskills.io) | ⚠️ [Experimental](https://geminicli.com/docs/cli/skills/) |
+| Agent | 📄 Basic | 🪺 Nested | 🎯 Selective | 🔧 Skills |
+|-------|----------|-----------|--------------|-----------|
+| **Claude Code** | ❌ | ❌ | ❌ | ✅ [Native](https://agentskills.io) |
+| **Gemini CLI** | ⚠️ [Configurable](https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html) | ✅ | ❌ | ⚠️ [Experimental](https://geminicli.com/docs/cli/skills/) |
+| **Cursor IDE** | ✅ | ❌ | ✅ | ✅ [Native](https://cursor.com/docs/context/skills) |
 
 ## How It Works
 
