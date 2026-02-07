@@ -9,7 +9,7 @@ Cursor provides both an IDE and a standalone CLI agent. These are independent pr
 
 Both support the Agent Skills specification natively.
 
-**Universal-agents naming**: In universal-agents, we use `cursor-cli` and `cursor-ide` to distinguish between these two independent products (e.g., `./test-agents.sh cursor-cli`).
+**Universal-agents naming**: `install.sh` uses `cursor` as the agent name (both products share the same configuration). The test runner (`test-agents.sh`) distinguishes `cursor-cli` and `cursor-ide` as separate test agents since they have different execution methods.
 
 **AGENTS.md Support Status**:
 
@@ -174,7 +174,7 @@ Project-level configuration is limited to permissions only.
 
 **Cursor IDE** integration uses a `sessionStart` hook to polyfill nested AGENTS.md support:
 
-- **AGENTS.md polyfill**: `.agents/polyfills/agentsmd/cursor-ide.sh` discovers all AGENTS.md files and injects them via JSON `additional_context`
+- **AGENTS.md polyfill**: `.agents/polyfills/agentsmd/cursor.sh` discovers all AGENTS.md files and injects them via JSON `additional_context`
 - **Hook config**: `.cursor/hooks.json` configures the `sessionStart` hook
 - **Skills**: `.cursor/skills/` symlinked to `../.agents/skills/` for native discovery
 - **How it works**: The hook outputs `{"additional_context": "...", "continue": true}` — Cursor injects the string into agent context at session start

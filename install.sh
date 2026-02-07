@@ -3,7 +3,7 @@ set -e
 
 VERSION="1.0.0"
 
-SUPPORTED_AGENTS="claude cursor-ide gemini"
+SUPPORTED_AGENTS="claude cursor gemini"
 
 # Installation modes
 INSTALL_MODE="project"  # project, local, or global
@@ -86,7 +86,7 @@ trim() {
 	echo "$var"
 }
 
-# Convert agent name to valid shell function name (e.g. cursor-ide -> cursor_ide)
+# Convert agent name to valid shell function name (e.g. some-agent -> some_agent)
 func_name() {
 	echo "$1" | tr '-' '_'
 }
@@ -107,8 +107,8 @@ gemini_settings_path() {
 	esac
 }
 
-# Get Cursor IDE hooks file path based on install mode
-cursor_ide_hooks_path() {
+# Get Cursor hooks file path based on install mode
+cursor_hooks_path() {
 	case "$INSTALL_MODE" in
 		project) echo ".cursor/hooks.json" ;;
 		global)  echo "$HOME/.cursor/hooks.json" ;;
@@ -128,10 +128,9 @@ agent_skills_dir() {
 	local agent="$1"
 	case "$agent" in
 		claude)     echo ".claude/skills" ;;
-		cursor-ide) echo ".cursor/skills" ;;
+		cursor)     echo ".cursor/skills" ;;
 		gemini)     echo ".gemini/skills" ;;
 		codex)      echo ".codex/skills" ;;
-		cursor)     echo ".cursor/skills" ;;
 		copilot)    echo ".github/skills" ;;
 	esac
 }
@@ -145,7 +144,7 @@ polyfill_reference_path() {
 		project)
 			local env_var
 			case "$agent" in
-				cursor-ide) env_var="CURSOR_PROJECT_DIR" ;;
+				cursor) env_var="CURSOR_PROJECT_DIR" ;;
 				*)          env_var="CLAUDE_PROJECT_DIR" ;;
 			esac
 			echo "\$$env_var/$dir/$script_name"
@@ -199,10 +198,7 @@ check_perl() {
 
 # Get the CLI binary name for detecting an agent
 agent_detect_binary() {
-	case "$1" in
-		cursor-ide) echo "cursor" ;;
-		*)          echo "$1" ;;
-	esac
+	echo "$1"
 }
 
 detect_installed_agents() {
@@ -220,7 +216,7 @@ detect_installed_agents() {
 prompt_agent_selection() {
 	printf "\n$(c heading 'Select agents to configure:')\n\n" >&2
 	printf "  $(c agent claude)      - Claude Code\n" >&2
-	printf "  $(c agent cursor-ide)  - Cursor IDE\n" >&2
+	printf "  $(c agent cursor)      - Cursor\n" >&2
 	printf "  $(c agent gemini)      - Gemini CLI\n" >&2
 	printf "\n" >&2
 	printf "Enter agent names (space-separated), or $(c option all) for all: " >&2
@@ -695,7 +691,7 @@ template_gemini_skills_hook() {
 	end_template
 }
 
-template_cursor_ide_hooks() {
+template_cursor_hooks() {
 	# Config level: no hooks
 	if [ "$INSTALL_LEVEL" = "config" ]; then
 		cat <<-'end_template'
@@ -707,11 +703,11 @@ template_cursor_ide_hooks() {
 		return
 	fi
 
-	local polyfill_path=$(polyfill_reference_path "cursor-ide" "agentsmd/cursor-ide.sh")
+	local polyfill_path=$(polyfill_reference_path "cursor" "agentsmd/cursor.sh")
 
 	# Global mode also includes the skills hook
 	if [ "$INSTALL_MODE" = "global" ]; then
-		local skills_hook_path=$(polyfill_reference_path "cursor-ide" "skills/cursor-ide.sh")
+		local skills_hook_path=$(polyfill_reference_path "cursor" "skills/cursor.sh")
 		cat <<-end_template
 			{
 			  "version": 1,
@@ -743,7 +739,7 @@ template_cursor_ide_hooks() {
 	fi
 }
 
-template_cursor_ide_hook() {
+template_cursor_hook() {
 	cat <<-'end_template'
 		#!/bin/sh
 
@@ -858,7 +854,7 @@ template_cursor_ide_hook() {
 	end_template
 }
 
-template_cursor_ide_skills_hook() {
+template_cursor_skills_hook() {
 	cat <<-'end_template'
 		#!/bin/sh
 
@@ -1088,18 +1084,18 @@ plan_claude() {
 	fi
 }
 
-plan_cursor_ide() {
+plan_cursor() {
 	plan_json \
-		"$(cursor_ide_hooks_path)" \
-		"$(template_cursor_ide_hooks)" \
+		"$(cursor_hooks_path)" \
+		"$(template_cursor_hooks)" \
 		"add AGENTS.md sessionStart hook"
 
 	# Config level: no polyfill scripts
 	[ "$INSTALL_LEVEL" = "config" ] && return
 
 	# Plan the AGENTS.md hook script
-	local polyfill_path="$(polyfill_dir)/agentsmd/cursor-ide.sh"
-	local new_content="$(template_cursor_ide_hook)"
+	local polyfill_path="$(polyfill_dir)/agentsmd/cursor.sh"
+	local new_content="$(template_cursor_hook)"
 
 	if [ -f "$polyfill_path" ]; then
 		local current_content="$(cat "$polyfill_path")"
@@ -1114,8 +1110,8 @@ plan_cursor_ide() {
 
 	# Global mode: also plan the skills hook script
 	if [ "$INSTALL_MODE" = "global" ]; then
-		local skills_hook_path="$(polyfill_dir)/skills/cursor-ide.sh"
-		local skills_content="$(template_cursor_ide_skills_hook)"
+		local skills_hook_path="$(polyfill_dir)/skills/cursor.sh"
+		local skills_content="$(template_cursor_skills_hook)"
 
 		if [ -f "$skills_hook_path" ]; then
 			local current_skills_content="$(cat "$skills_hook_path")"
@@ -1197,7 +1193,7 @@ show_help() {
 	printf "$(c heading Examples:)\n"
 	printf "  install.sh                      # Auto-detect agents, interactive mode\n"
 	printf "  install.sh $(c agent claude)               # Only Claude, project mode\n"
-	printf "  install.sh $(c agent cursor-ide)           # Only Cursor IDE, project mode\n"
+	printf "  install.sh $(c agent cursor)               # Only Cursor, project mode\n"
 	printf "  install.sh $(c agent claude) $(c agent gemini)        # Multiple agents\n"
 	printf "  install.sh $(c option all)                  # Install all supported agents\n"
 	printf "  install.sh $(c flag --global)             # Global mode (user home)\n"

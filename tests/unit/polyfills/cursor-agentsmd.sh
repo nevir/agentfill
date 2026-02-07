@@ -1,11 +1,11 @@
 
-# Helper to run Cursor IDE polyfill script with isolated HOME
-run_cursor_ide_polyfill_isolated() {
+# Helper to run Cursor polyfill script with isolated HOME
+run_cursor_polyfill_isolated() {
 	local project_dir="$1"
 	local temp_home
 	temp_home=$(mktemp -d)
 	local output
-	output=$(HOME="$temp_home" CURSOR_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/agentsmd/cursor-ide.sh")
+	output=$(HOME="$temp_home" CURSOR_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/agentsmd/cursor.sh")
 	rm -rf "$temp_home"
 	printf '%s\n' "$output"
 }
@@ -18,11 +18,11 @@ extract_context() {
 	'
 }
 
-test_cursor_ide_no_agentsmd_files() {
+test_cursor_no_agentsmd_files() {
 	local project_dir="$1"
 
 	local output
-	output=$(run_cursor_ide_polyfill_isolated "$project_dir")
+	output=$(run_cursor_polyfill_isolated "$project_dir")
 	local exit_code=$?
 
 	# Should exit with 0 and produce valid JSON with continue:true
@@ -35,7 +35,7 @@ test_cursor_ide_no_agentsmd_files() {
 	'
 }
 
-test_cursor_ide_single_root_agentsmd() {
+test_cursor_single_root_agentsmd() {
 	local project_dir="$1"
 
 	cat > "$project_dir/AGENTS.md" <<-end_agentsmd
@@ -44,7 +44,7 @@ test_cursor_ide_single_root_agentsmd() {
 	end_agentsmd
 
 	local output
-	output=$(run_cursor_ide_polyfill_isolated "$project_dir")
+	output=$(run_cursor_polyfill_isolated "$project_dir")
 
 	# Should be valid JSON
 	local context
@@ -57,7 +57,7 @@ test_cursor_ide_single_root_agentsmd() {
 	echo "$context" | grep -q "This is a test AGENTS.md file."
 }
 
-test_cursor_ide_multiple_nested_agentsmd() {
+test_cursor_multiple_nested_agentsmd() {
 	local project_dir="$1"
 
 	cat > "$project_dir/AGENTS.md" <<-end_root
@@ -75,7 +75,7 @@ test_cursor_ide_multiple_nested_agentsmd() {
 	end_deep
 
 	local output
-	output=$(run_cursor_ide_polyfill_isolated "$project_dir")
+	output=$(run_cursor_polyfill_isolated "$project_dir")
 	local context
 	context=$(printf '%s\n' "$output" |extract_context)
 
@@ -86,7 +86,7 @@ test_cursor_ide_multiple_nested_agentsmd() {
 	echo "$context" | grep -q "# Root Instructions"
 }
 
-test_cursor_ide_output_is_valid_json() {
+test_cursor_output_is_valid_json() {
 	local project_dir="$1"
 
 	cat > "$project_dir/AGENTS.md" <<-end_agentsmd
@@ -94,7 +94,7 @@ test_cursor_ide_output_is_valid_json() {
 	end_agentsmd
 
 	local output
-	output=$(run_cursor_ide_polyfill_isolated "$project_dir")
+	output=$(run_cursor_polyfill_isolated "$project_dir")
 
 	# Verify it's valid JSON with expected fields
 	printf '%s\n' "$output" |perl -MJSON::PP -e '
@@ -106,7 +106,7 @@ test_cursor_ide_output_is_valid_json() {
 	'
 }
 
-test_cursor_ide_json_encodes_special_characters() {
+test_cursor_json_encodes_special_characters() {
 	local project_dir="$1"
 
 	cat > "$project_dir/AGENTS.md" <<-'end_agentsmd'
@@ -117,7 +117,7 @@ test_cursor_ide_json_encodes_special_characters() {
 	end_agentsmd
 
 	local output
-	output=$(run_cursor_ide_polyfill_isolated "$project_dir")
+	output=$(run_cursor_polyfill_isolated "$project_dir")
 
 	# Verify output is valid JSON (Perl will fail to decode if not)
 	local context
@@ -130,7 +130,7 @@ test_cursor_ide_json_encodes_special_characters() {
 	echo "$context" | grep -q 'backslash'
 }
 
-test_cursor_ide_context_contains_instructions() {
+test_cursor_context_contains_instructions() {
 	local project_dir="$1"
 
 	cat > "$project_dir/AGENTS.md" <<-end_agentsmd
@@ -138,7 +138,7 @@ test_cursor_ide_context_contains_instructions() {
 	end_agentsmd
 
 	local output
-	output=$(run_cursor_ide_polyfill_isolated "$project_dir")
+	output=$(run_cursor_polyfill_isolated "$project_dir")
 	local context
 	context=$(printf '%s\n' "$output" |extract_context)
 
@@ -149,13 +149,13 @@ test_cursor_ide_context_contains_instructions() {
 	echo "$context" | grep -q "</agentsmd_instructions>"
 }
 
-test_cursor_ide_empty_agentsmd_file() {
+test_cursor_empty_agentsmd_file() {
 	local project_dir="$1"
 
 	touch "$project_dir/AGENTS.md"
 
 	local output
-	output=$(run_cursor_ide_polyfill_isolated "$project_dir")
+	output=$(run_cursor_polyfill_isolated "$project_dir")
 
 	# Should still produce valid JSON with the file listed
 	local context
