@@ -7,6 +7,7 @@ This directory contains reference documentation for AI coding agents and their c
 ```
 docs/
 ├── AGENTS.md           # This file - index and guidelines
+├── Agent Skills.md     # Best practices for writing portable agent skills
 ├── Comparison.md       # Comparison with similar projects
 └── agents/             # Per-agent configuration references
     ├── Claude.md       # Claude Code configuration
@@ -19,6 +20,13 @@ docs/
 ## Documentation
 
 ### Project Overview
+
+- **[Agent Skills Best Practices](Agent%20Skills.md)** - Guide to writing portable agent skills:
+  - **SKILL.md Format**: Frontmatter fields, body structure, directory layout
+  - **Writing Skills**: Descriptions, instructions, progressive disclosure, workflow patterns
+  - **Portability**: What's universal vs agent-specific, cross-agent best practices
+  - **Development Process**: Iterative workflow for creating effective skills
+  - **Ecosystem**: Specification, directories, community resources
 
 - **[Comparison with Similar Projects](Comparison.md)** - Comprehensive analysis comparing universal-agents with similar projects and standards:
   - **Configuration Management Tools**: Ruler, OpenSkills, Symlinks, Codebase Context Specification
@@ -71,8 +79,8 @@ docs/
 ### Suggested Formatting
 
 **File naming:**
-- Use PascalCase: `Claude.md`, `Gemini.md`
-- Match the common name of the tool
+- Use Title Case: `Claude.md`, `Gemini.md`, `Agent Skills.md`
+- Match the common name of the tool or topic
 
 **Suggested content structure:**
 1. H1: Agent name + "Configuration"
