@@ -1,48 +1,47 @@
 #!/usr/bin/env node
 
 /**
- * Cursor IDE Test Harness
- *
- * Runs prompts through Cursor IDE using @vscode/test-electron.
+ * Cursor IDE Test Harness - Long-running approach
  *
  * Usage:
- *   node run-prompt.js --discover              # Discover available commands
- *   node run-prompt.js "prompt text"           # Send prompt and get response
- *   node run-prompt.js --workspace /path       # Specify workspace directory
+ *   cursor-prompt --start              # Launch Cursor with test profile (log in once)
+ *   cursor-prompt "prompt text"        # Send prompt and wait for response
+ *   cursor-prompt --status             # Check if Cursor is ready
+ *   cursor-prompt --stop               # Stop Cursor
  *
  * Environment variables:
  *   CURSOR_PATH - Path to Cursor executable (auto-detected if not set)
  */
 
-import { runTests } from '@vscode/test-electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import { spawn, execSync } from 'child_process';
+import { randomUUID } from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Temp files for IPC with extension
-const PROMPT_FILE = '/tmp/cursor-test-prompt.txt';
-const RESPONSE_FILE = '/tmp/cursor-test-response.txt';
-const COMMAND_FILE = '/tmp/cursor-test-commands.json';
+// IPC paths (must match extension)
+const IPC_DIR = '/tmp/cursor-test-ipc';
+const PROMPT_FILE = path.join(IPC_DIR, 'prompt.json');
+const RESPONSE_FILE = path.join(IPC_DIR, 'response.json');
+const STATUS_FILE = path.join(IPC_DIR, 'status.json');
+
+// Test profile paths (persistent)
+const TEST_PROFILE_DIR = path.resolve(__dirname, '.cursor-test-profile');
+const TEST_EXTENSIONS_DIR = path.resolve(__dirname, '.cursor-test-extensions');
 
 function findCursorPath() {
-    // Check environment variable first
     if (process.env.CURSOR_PATH) {
         return process.env.CURSOR_PATH;
     }
 
-    // Common locations
     const locations = [
         '/Applications/Cursor.app/Contents/MacOS/Cursor',
         '/usr/local/bin/cursor',
-        // Linux
         '/usr/bin/cursor',
         '/opt/Cursor/cursor',
-        // Windows (via WSL or native)
-        'C:\\Users\\*\\AppData\\Local\\Programs\\cursor\\Cursor.exe',
     ];
 
     for (const loc of locations) {
@@ -51,139 +50,194 @@ function findCursorPath() {
         }
     }
 
-    // Try to find via `which`
     try {
         const result = execSync('which cursor 2>/dev/null || true').toString().trim();
         if (result && fs.existsSync(result)) {
             return result;
         }
-    } catch {
-        // Ignore
-    }
+    } catch {}
 
     return null;
 }
 
-async function discoverCommands(workspacePath) {
-    const cursorPath = findCursorPath();
-    if (!cursorPath) {
-        console.error('Error: Cursor not found. Set CURSOR_PATH environment variable.');
-        process.exit(1);
+function getStatus() {
+    if (!fs.existsSync(STATUS_FILE)) {
+        return null;
     }
-
-    const extensionDevelopmentPath = path.resolve(__dirname, 'extension');
-    const extensionTestsPath = path.resolve(__dirname, 'extension/out/test/suite/index.js');
-
-    // Use short paths (Unix socket limit is 103 chars)
-    const userDataDir = '/tmp/cursor-test';
-    const testExtensionsDir = '/tmp/cursor-test-ext';
-    fs.mkdirSync(userDataDir, { recursive: true });
-    fs.mkdirSync(testExtensionsDir, { recursive: true });
-
-    // Clean up old files
-    try { fs.unlinkSync(COMMAND_FILE); } catch { }
-
-    console.log('Launching Cursor to discover commands...');
-    console.log(`  Cursor path: ${cursorPath}`);
-    console.log(`  Extension: ${extensionDevelopmentPath}`);
-    console.log(`  Workspace: ${workspacePath}`);
-    console.log(`  User data dir: ${userDataDir}`);
-
     try {
-        await runTests({
-            vscodeExecutablePath: cursorPath,
-            extensionDevelopmentPath,
-            extensionTestsPath,
-            launchArgs: [
-                workspacePath,
-                `--user-data-dir=${userDataDir}`,
-                `--extensions-dir=${testExtensionsDir}`,
-            ],
-            extensionTestsEnv: {
-                CURSOR_TEST_OUTPUT_FILE: COMMAND_FILE,
-                CURSOR_TEST_WORKSPACE: workspacePath,
-                CURSOR_TEST_MODE: 'discover',
-            },
-        });
-
-        // Read and display results
-        if (fs.existsSync(COMMAND_FILE)) {
-            const commands = JSON.parse(fs.readFileSync(COMMAND_FILE, 'utf8'));
-            console.log('\n=== Discovery Results ===');
-            console.log(`Total commands: ${commands.total}`);
-            console.log('\nCursor/Chat/Agent commands:');
-            commands.cursorCommands?.forEach(cmd => console.log(`  ${cmd}`));
-            return commands;
-        }
-    } catch (error) {
-        console.error('Failed to run discovery:', error);
-        process.exit(1);
+        return JSON.parse(fs.readFileSync(STATUS_FILE, 'utf8'));
+    } catch {
+        return null;
     }
 }
 
-async function sendPrompt(prompt, workspacePath) {
+function isCursorRunning() {
+    const status = getStatus();
+    if (!status || status.state === 'stopped') {
+        return false;
+    }
+
+    // Check if the process is actually running
+    if (status.pid) {
+        try {
+            process.kill(status.pid, 0);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+async function startCursor(workspacePath) {
     const cursorPath = findCursorPath();
     if (!cursorPath) {
         console.error('Error: Cursor not found. Set CURSOR_PATH environment variable.');
         process.exit(1);
     }
 
-    const extensionDevelopmentPath = path.resolve(__dirname, 'extension');
+    // Ensure directories exist
+    fs.mkdirSync(TEST_PROFILE_DIR, { recursive: true });
+    fs.mkdirSync(TEST_EXTENSIONS_DIR, { recursive: true });
+    fs.mkdirSync(IPC_DIR, { recursive: true });
 
-    // Write prompt to file for extension to read
-    fs.writeFileSync(PROMPT_FILE, prompt);
+    // Clean up old IPC files
+    try { fs.unlinkSync(PROMPT_FILE); } catch {}
+    try { fs.unlinkSync(RESPONSE_FILE); } catch {}
+    try { fs.unlinkSync(STATUS_FILE); } catch {}
 
-    // Clean up old response
-    try { fs.unlinkSync(RESPONSE_FILE); } catch { }
+    const extensionPath = path.resolve(__dirname, 'extension');
 
-    console.error('Launching Cursor with prompt...');
-    console.error(`  Workspace: ${workspacePath}`);
+    console.log('Starting Cursor with test profile...');
+    console.log(`  Profile: ${TEST_PROFILE_DIR}`);
+    console.log(`  Extension: ${extensionPath}`);
+    console.log(`  Workspace: ${workspacePath}`);
 
-    try {
-        // For sending prompts, we need a different approach since we can't
-        // easily capture async agent responses through the test framework.
-        //
-        // Alternative approach: Launch Cursor normally with extension, use
-        // file-based IPC for the response.
+    // Launch Cursor as a detached process
+    const args = [
+        workspacePath,
+        `--user-data-dir=${TEST_PROFILE_DIR}`,
+        `--extensions-dir=${TEST_EXTENSIONS_DIR}`,
+        `--extensionDevelopmentPath=${extensionPath}`,
+    ];
 
-        await runTests({
-            vscodeExecutablePath: cursorPath,
-            extensionDevelopmentPath,
-            // No test path - just activate the extension
-            launchArgs: [
-                workspacePath,
-                '--disable-extensions',
-            ],
-            extensionTestsEnv: {
-                CURSOR_TEST_PROMPT_FILE: PROMPT_FILE,
-                CURSOR_TEST_RESPONSE_FILE: RESPONSE_FILE,
-                CURSOR_TEST_AUTO_PROMPT: '1',
-            },
-        });
+    const child = spawn(cursorPath, args, {
+        detached: true,
+        stdio: 'ignore',
+    });
 
-        // Wait for response file
-        const timeout = 60000;
-        const start = Date.now();
-        while (!fs.existsSync(RESPONSE_FILE) && Date.now() - start < timeout) {
-            await new Promise(r => setTimeout(r, 500));
+    child.unref();
+
+    console.log(`\nCursor launched (PID: ${child.pid})`);
+    console.log('\nWaiting for extension to initialize...');
+
+    // Wait for extension to write status file
+    const timeout = 30000;
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+        const status = getStatus();
+        if (status && status.state === 'ready') {
+            console.log('\n✓ Extension ready! You can now send prompts.');
+            console.log('\nIf this is your first run, please log in to Cursor.');
+            console.log('The session will persist for future runs.');
+            return;
         }
+        await new Promise(r => setTimeout(r, 500));
+    }
 
-        if (fs.existsSync(RESPONSE_FILE)) {
-            const response = JSON.parse(fs.readFileSync(RESPONSE_FILE, 'utf8'));
-            if (response.success) {
-                console.log(response.content);
-            } else {
-                console.error('Error:', response.error);
-                process.exit(1);
-            }
-        } else {
-            console.error('Timeout waiting for response');
-            process.exit(1);
-        }
-    } catch (error) {
-        console.error('Failed:', error);
+    console.log('\n⚠ Extension did not report ready within timeout.');
+    console.log('Cursor may still be starting. Check the status with: cursor-prompt --status');
+}
+
+async function sendPrompt(prompt, timeoutMs = 60000) {
+    // Check if Cursor is running
+    const status = getStatus();
+    if (!status || status.state !== 'ready') {
+        console.error('Error: Cursor is not running or not ready.');
+        console.error('Start it first with: cursor-prompt --start');
+        console.error(`Current status: ${status ? status.state : 'not running'}`);
         process.exit(1);
     }
+
+    // Ensure IPC directory exists
+    fs.mkdirSync(IPC_DIR, { recursive: true });
+
+    // Clean up old response
+    try { fs.unlinkSync(RESPONSE_FILE); } catch {}
+
+    // Generate unique ID for this prompt
+    const id = randomUUID().substring(0, 8);
+
+    // Write prompt file
+    const promptData = {
+        id,
+        prompt,
+        timestamp: new Date().toISOString()
+    };
+
+    fs.writeFileSync(PROMPT_FILE, JSON.stringify(promptData, null, 2));
+    console.error(`Sent prompt [${id}]: ${prompt.substring(0, 50)}...`);
+
+    // Wait for response
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (fs.existsSync(RESPONSE_FILE)) {
+            const response = JSON.parse(fs.readFileSync(RESPONSE_FILE, 'utf8'));
+
+            // Check if this is our response
+            if (response.id === id || !response.id) {
+                // Clean up
+                try { fs.unlinkSync(RESPONSE_FILE); } catch {}
+
+                if (response.success) {
+                    console.log(response.response || 'Prompt sent successfully');
+                    return response;
+                } else {
+                    console.error('Error:', response.error);
+                    process.exit(1);
+                }
+            }
+        }
+        await new Promise(r => setTimeout(r, 200));
+    }
+
+    console.error('Timeout waiting for response');
+    process.exit(1);
+}
+
+function showStatus() {
+    const status = getStatus();
+    if (!status) {
+        console.log('Status: Not running');
+        console.log('\nStart Cursor with: cursor-prompt --start');
+        return;
+    }
+
+    console.log(`Status: ${status.state}`);
+    console.log(`Message: ${status.message}`);
+    console.log(`PID: ${status.pid || 'unknown'}`);
+    console.log(`Last update: ${status.timestamp}`);
+
+    if (status.state === 'ready') {
+        console.log('\n✓ Ready to receive prompts');
+    }
+}
+
+function stopCursor() {
+    const status = getStatus();
+    if (status && status.pid) {
+        try {
+            process.kill(status.pid, 'SIGTERM');
+            console.log(`Sent SIGTERM to PID ${status.pid}`);
+        } catch (error) {
+            console.log('Process not running or already stopped');
+        }
+    }
+
+    // Clean up status file
+    try { fs.unlinkSync(STATUS_FILE); } catch {}
+    console.log('Stopped');
 }
 
 function showHelp() {
@@ -191,121 +245,27 @@ function showHelp() {
 Cursor IDE Test Harness
 
 Usage:
-  node run-prompt.js --discover [--workspace PATH]
-  node run-prompt.js "prompt" [--workspace PATH]
-  node run-prompt.js --help
+  cursor-prompt --start [--workspace PATH]    Launch Cursor with test profile
+  cursor-prompt "prompt text"                 Send prompt and wait for response
+  cursor-prompt --status                      Check if Cursor is ready
+  cursor-prompt --stop                        Stop Cursor
+  cursor-prompt --reset                       Reset test profile (requires re-login)
+  cursor-prompt --help                        Show this help
 
 Options:
-  --discover        Discover available Cursor commands
-  --workspace PATH  Workspace directory to open (default: current dir)
-  --help            Show this help
+  --workspace PATH    Workspace directory (default: current dir)
+  --timeout MS        Prompt timeout in milliseconds (default: 60000)
 
-Environment:
-  CURSOR_PATH       Path to Cursor executable
+First-time setup:
+  1. Run: cursor-prompt --start
+  2. Log in to Cursor when prompted
+  3. The session will persist for future runs
 
 Examples:
-  # Discover commands
-  node run-prompt.js --discover
-
-  # Send a prompt
-  node run-prompt.js "What is the secret phrase from AGENTS.md?"
-
-  # Send prompt in specific workspace
-  node run-prompt.js "Hello" --workspace /path/to/project
+  cursor-prompt --start --workspace /path/to/project
+  cursor-prompt "What is 2+2?"
+  cursor-prompt --status
 `);
-}
-
-function setupUserSettings(userDataDir) {
-    // Create minimal settings for test environment
-    const userSettingsDir = path.join(userDataDir, 'User');
-    const settingsPath = path.join(userSettingsDir, 'settings.json');
-
-    fs.mkdirSync(userSettingsDir, { recursive: true });
-
-    // Only write settings if they don't exist (preserve user's login state)
-    if (!fs.existsSync(settingsPath)) {
-        const settings = {
-            "workbench.welcome.enabled": false,
-            "workbench.welcomePage.walkthroughs.openOnInstall": false,
-            "workbench.startupEditor": "none",
-            "telemetry.telemetryLevel": "off",
-            "update.mode": "none",
-            "security.workspace.trust.enabled": false,
-            "security.workspace.trust.startupPrompt": "never",
-        };
-
-        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-    }
-
-    return userDataDir;
-}
-
-async function runPromptTest(prompt, workspacePath, waitLogin = false) {
-    const cursorPath = findCursorPath();
-    if (!cursorPath) {
-        console.error('Error: Cursor not found. Set CURSOR_PATH environment variable.');
-        process.exit(1);
-    }
-
-    const extensionDevelopmentPath = path.resolve(__dirname, 'extension');
-    const extensionTestsPath = path.resolve(__dirname, 'extension/out/test/suite/index.js');
-    const outputFile = '/tmp/cursor-prompt-result.json';
-
-    // Use a short path for user-data-dir (Unix socket path limit is 103 chars)
-    // Persist this so user only needs to log in once
-    const userDataDir = '/tmp/cursor-test';
-    const testExtensionsDir = '/tmp/cursor-test-ext';
-
-    fs.mkdirSync(userDataDir, { recursive: true });
-    fs.mkdirSync(testExtensionsDir, { recursive: true });
-
-    // Clean up old output files
-    try { fs.unlinkSync(outputFile); } catch { }
-
-    const isFirstRun = !fs.existsSync(path.join(userDataDir, '.login-complete'));
-
-    console.log('Launching Cursor to send prompt...');
-    console.log(`  Prompt: ${prompt.substring(0, 50)}...`);
-    console.log(`  Workspace: ${workspacePath}`);
-    console.log(`  User data dir: ${userDataDir}`);
-    if (isFirstRun) {
-        console.log('  NOTE: First run - you may need to log in. Profile persists in /tmp/cursor-test');
-    }
-
-    try {
-        await runTests({
-            vscodeExecutablePath: cursorPath,
-            extensionDevelopmentPath,
-            extensionTestsPath,
-            launchArgs: [
-                workspacePath,
-                `--user-data-dir=${userDataDir}`,
-                `--extensions-dir=${testExtensionsDir}`,
-            ],
-            extensionTestsEnv: {
-                CURSOR_TEST_PROMPT: prompt,
-                CURSOR_TEST_OUTPUT_FILE: outputFile,
-                CURSOR_TEST_MODE: 'prompt',
-                CURSOR_TEST_WAIT_LOGIN: (waitLogin || isFirstRun) ? '1' : '0',
-            },
-        });
-
-        // Mark login as complete after successful run
-        if (isFirstRun) {
-            fs.writeFileSync(path.join(userDataDir, '.login-complete'), new Date().toISOString());
-        }
-
-        // Read results
-        if (fs.existsSync(outputFile)) {
-            const result = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
-            console.log('\n=== Prompt Test Results ===');
-            console.log(JSON.stringify(result, null, 2));
-            return result;
-        }
-    } catch (error) {
-        console.error('Failed:', error);
-        process.exit(1);
-    }
 }
 
 async function main() {
@@ -316,55 +276,52 @@ async function main() {
         process.exit(0);
     }
 
-    // Parse arguments
+    // Parse workspace
     let workspacePath = process.cwd();
-    let discover = false;
-    let testPrompt = false;
-    let prompt = null;
-
-    for (let i = 0; i < args.length; i++) {
-        const arg = args[i];
-        if (arg === '--discover') {
-            discover = true;
-        } else if (arg === '--test-prompt') {
-            testPrompt = true;
-        } else if (arg === '--workspace' && args[i + 1]) {
-            workspacePath = path.resolve(args[++i]);
-        } else if (!arg.startsWith('--')) {
-            prompt = arg;
-        }
+    const wsIdx = args.indexOf('--workspace');
+    if (wsIdx !== -1 && args[wsIdx + 1]) {
+        workspacePath = path.resolve(args[wsIdx + 1]);
     }
 
-    // Ensure workspace exists
-    if (!fs.existsSync(workspacePath)) {
-        console.error(`Workspace not found: ${workspacePath}`);
-        process.exit(1);
+    // Parse timeout
+    let timeout = 60000;
+    const toIdx = args.indexOf('--timeout');
+    if (toIdx !== -1 && args[toIdx + 1]) {
+        timeout = parseInt(args[toIdx + 1], 10);
     }
 
-    const forceWaitLogin = args.includes('--wait-login');
-    const resetProfile = args.includes('--reset-profile');
-
-    // Handle profile reset
-    if (resetProfile) {
-        const profileDir = path.resolve(__dirname, '.cursor-test-profile');
-        if (fs.existsSync(profileDir)) {
-            console.log(`Removing test profile: ${profileDir}`);
-            fs.rmSync(profileDir, { recursive: true });
-        }
-        console.log('Test profile reset. Next run will require login.');
-        if (!discover && !testPrompt && !prompt) {
-            process.exit(0);
-        }
-    }
-
-    if (discover) {
-        await discoverCommands(workspacePath);
-    } else if (testPrompt || prompt) {
-        const testMessage = prompt || 'What is 2+2? Reply with ONLY the number.';
-        await runPromptTest(testMessage, workspacePath, forceWaitLogin);
+    if (args.includes('--start')) {
+        await startCursor(workspacePath);
+    } else if (args.includes('--status')) {
+        showStatus();
+    } else if (args.includes('--stop')) {
+        stopCursor();
+    } else if (args.includes('--reset')) {
+        console.log('Resetting test profile...');
+        try { fs.rmSync(TEST_PROFILE_DIR, { recursive: true }); } catch {}
+        try { fs.rmSync(TEST_EXTENSIONS_DIR, { recursive: true }); } catch {}
+        try { fs.rmSync(IPC_DIR, { recursive: true }); } catch {}
+        console.log('Done. Run --start to create a fresh profile.');
     } else {
-        showHelp();
-        process.exit(1);
+        // Find prompt (first non-flag argument)
+        const prompt = args.find(arg => !arg.startsWith('--'));
+        if (prompt) {
+            await sendPrompt(prompt, timeout);
+        } else {
+            // Check for stdin
+            if (!process.stdin.isTTY) {
+                let input = '';
+                for await (const chunk of process.stdin) {
+                    input += chunk;
+                }
+                if (input.trim()) {
+                    await sendPrompt(input.trim(), timeout);
+                    return;
+                }
+            }
+            showHelp();
+            process.exit(1);
+        }
     }
 }
 

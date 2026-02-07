@@ -2,175 +2,228 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// File path for IPC with test runner
-const COMMAND_FILE = process.env.CURSOR_TEST_COMMAND_FILE || '/tmp/cursor-test-commands.json';
-const PROMPT_FILE = process.env.CURSOR_TEST_PROMPT_FILE || '/tmp/cursor-test-prompt.txt';
-const RESPONSE_FILE = process.env.CURSOR_TEST_RESPONSE_FILE || '/tmp/cursor-test-response.txt';
+// File paths for IPC - use a consistent location
+const IPC_DIR = '/tmp/cursor-test-ipc';
+const PROMPT_FILE = path.join(IPC_DIR, 'prompt.json');
+const RESPONSE_FILE = path.join(IPC_DIR, 'response.json');
+const STATUS_FILE = path.join(IPC_DIR, 'status.json');
+
+let fileWatcher: fs.FSWatcher | null = null;
+let isProcessing = false;
+let commandLogging = false;
+const commandLog: string[] = [];
+
+// Hook command execution to log what commands are being run
+const originalExecuteCommand = vscode.commands.executeCommand.bind(vscode.commands);
+(vscode.commands as any).executeCommand = async function(command: string, ...args: any[]) {
+    if (commandLogging) {
+        const entry = `${new Date().toISOString()} - ${command}`;
+        commandLog.push(entry);
+        console.log(`[CMD LOG] ${entry}`);
+        // Write to file
+        const logFile = path.join(IPC_DIR, 'command-log.txt');
+        fs.appendFileSync(logFile, entry + '\n');
+    }
+    return originalExecuteCommand(command, ...args);
+};
 
 export async function activate(context: vscode.ExtensionContext) {
-    console.log('Cursor Test Harness activated');
+    console.log('Cursor Test Harness activated - starting prompt watcher');
 
-    // Register command discovery
-    context.subscriptions.push(
-        vscode.commands.registerCommand('cursorTestHarness.discoverCommands', async () => {
-            await discoverCommands();
-        })
-    );
+    // Start command logging
+    commandLogging = true;
+    const logFile = path.join(IPC_DIR, 'command-log.txt');
+    fs.writeFileSync(logFile, `=== Command logging started at ${new Date().toISOString()} ===\n`);
+    console.log(`Command logging enabled - writing to ${logFile}`);
 
-    // Register prompt sender
-    context.subscriptions.push(
-        vscode.commands.registerCommand('cursorTestHarness.sendPrompt', async () => {
-            await sendPromptFromFile();
-        })
-    );
-
-    // If CURSOR_TEST_AUTO_DISCOVER is set, automatically discover commands
-    if (process.env.CURSOR_TEST_AUTO_DISCOVER) {
-        setTimeout(() => discoverCommands(), 2000);
+    // Ensure IPC directory exists
+    if (!fs.existsSync(IPC_DIR)) {
+        fs.mkdirSync(IPC_DIR, { recursive: true });
     }
 
-    // If CURSOR_TEST_AUTO_PROMPT is set, automatically send prompt
-    if (process.env.CURSOR_TEST_AUTO_PROMPT) {
-        setTimeout(() => sendPromptFromFile(), 3000);
+    // Write status to indicate extension is ready
+    writeStatus('ready', 'Extension activated and watching for prompts');
+
+    // Clean up any stale prompt file
+    try { fs.unlinkSync(PROMPT_FILE); } catch {}
+    try { fs.unlinkSync(RESPONSE_FILE); } catch {}
+
+    // Start watching for prompt files
+    startPromptWatcher();
+
+    // Register manual command for testing
+    context.subscriptions.push(
+        vscode.commands.registerCommand('cursorTestHarness.processPrompt', async () => {
+            await processPromptFile();
+        })
+    );
+
+    // Cleanup on deactivation
+    context.subscriptions.push({
+        dispose: () => {
+            if (fileWatcher) {
+                fileWatcher.close();
+                fileWatcher = null;
+            }
+            writeStatus('stopped', 'Extension deactivated');
+        }
+    });
+}
+
+function writeStatus(state: string, message: string) {
+    const status = {
+        state,
+        message,
+        timestamp: new Date().toISOString(),
+        pid: process.pid
+    };
+    try {
+        fs.writeFileSync(STATUS_FILE, JSON.stringify(status, null, 2));
+    } catch (error) {
+        console.error('Failed to write status:', error);
     }
 }
 
-async function discoverCommands(): Promise<void> {
+function startPromptWatcher() {
+    // Watch the IPC directory for the prompt file
+    console.log(`Watching for prompts in ${IPC_DIR}`);
+
+    // Use polling since fs.watch can be unreliable
+    const checkForPrompt = async () => {
+        if (isProcessing) return;
+
+        if (fs.existsSync(PROMPT_FILE)) {
+            await processPromptFile();
+        }
+    };
+
+    // Check every 500ms
+    const interval = setInterval(checkForPrompt, 500);
+
+    // Also try fs.watch as backup
     try {
-        const allCommands = await vscode.commands.getCommands(true);
+        fileWatcher = fs.watch(IPC_DIR, async (eventType, filename) => {
+            if (filename === 'prompt.json' && eventType === 'rename') {
+                await checkForPrompt();
+            }
+        });
+    } catch (error) {
+        console.log('fs.watch not available, using polling only');
+    }
+}
 
-        // Filter for relevant commands
-        const relevantPatterns = [
-            'cursor', 'chat', 'agent', 'ai', 'copilot',
-            'assistant', 'composer', 'prompt', 'aichat'
-        ];
+async function processPromptFile() {
+    if (isProcessing) {
+        console.log('Already processing a prompt, skipping');
+        return;
+    }
 
-        const relevantCommands = allCommands.filter(cmd =>
-            relevantPatterns.some(pattern => cmd.toLowerCase().includes(pattern))
-        );
+    if (!fs.existsSync(PROMPT_FILE)) {
+        return;
+    }
 
-        const result = {
-            timestamp: new Date().toISOString(),
-            totalCommands: allCommands.length,
-            relevantCommands: relevantCommands.sort(),
-            // Also include any command that might be useful for chat interaction
-            chatCommands: allCommands.filter(cmd =>
-                cmd.includes('chat') || cmd.includes('Chat')
-            ).sort(),
-            workbenchCommands: allCommands.filter(cmd =>
-                cmd.startsWith('workbench.action')
-            ).sort()
+    isProcessing = true;
+    writeStatus('processing', 'Processing prompt');
+
+    try {
+        // Read and parse prompt
+        const promptData = JSON.parse(fs.readFileSync(PROMPT_FILE, 'utf8'));
+        const { prompt, id } = promptData;
+
+        console.log(`Processing prompt [${id}]: ${prompt.substring(0, 50)}...`);
+
+        // Delete prompt file immediately to prevent re-processing
+        fs.unlinkSync(PROMPT_FILE);
+
+        // Send the prompt and get response
+        const result = await sendPromptToChat(prompt);
+
+        // Write response
+        const response = {
+            id,
+            success: result.success,
+            response: result.response,
+            error: result.error,
+            timestamp: new Date().toISOString()
         };
 
-        fs.writeFileSync(COMMAND_FILE, JSON.stringify(result, null, 2));
-        console.log(`Commands written to ${COMMAND_FILE}`);
+        fs.writeFileSync(RESPONSE_FILE, JSON.stringify(response, null, 2));
+        console.log(`Response written for [${id}]`);
 
-        // Also show in VS Code
-        vscode.window.showInformationMessage(
-            `Found ${relevantCommands.length} relevant commands. Written to ${COMMAND_FILE}`
-        );
+        writeStatus('ready', 'Prompt processed, waiting for next');
+
     } catch (error) {
-        console.error('Failed to discover commands:', error);
-        fs.writeFileSync(COMMAND_FILE, JSON.stringify({ error: String(error) }));
-    }
-}
+        console.error('Error processing prompt:', error);
 
-async function sendPromptFromFile(): Promise<void> {
-    try {
-        // Read prompt from file
-        if (!fs.existsSync(PROMPT_FILE)) {
-            throw new Error(`Prompt file not found: ${PROMPT_FILE}`);
-        }
-
-        const prompt = fs.readFileSync(PROMPT_FILE, 'utf8').trim();
-        console.log(`Sending prompt: ${prompt.substring(0, 100)}...`);
-
-        // Try various methods to send the prompt
-        const methods = [
-            tryWorkbenchChat,
-            tryCursorChat,
-            tryAIChat,
-            tryComposer,
-        ];
-
-        let success = false;
-        let lastError = '';
-
-        for (const method of methods) {
-            try {
-                await method(prompt);
-                success = true;
-                break;
-            } catch (error) {
-                lastError = String(error);
-                console.log(`Method failed: ${lastError}`);
-            }
-        }
-
-        if (!success) {
-            fs.writeFileSync(RESPONSE_FILE, JSON.stringify({
-                success: false,
-                error: `All methods failed. Last error: ${lastError}`
-            }));
-        }
-    } catch (error) {
-        console.error('Failed to send prompt:', error);
         fs.writeFileSync(RESPONSE_FILE, JSON.stringify({
             success: false,
-            error: String(error)
-        }));
+            error: String(error),
+            timestamp: new Date().toISOString()
+        }, null, 2));
+
+        writeStatus('error', String(error));
+    } finally {
+        isProcessing = false;
     }
 }
 
-async function tryWorkbenchChat(prompt: string): Promise<void> {
-    // Try the test command that opens chat with a prompt
-    console.log('Trying workbench.action.chat.testOpenWithPrompt...');
-    await vscode.commands.executeCommand('workbench.action.chat.testOpenWithPrompt', prompt);
-}
-
-async function tryCursorChat(prompt: string): Promise<void> {
-    // Try Cursor composer commands
-    console.log('Trying composer.startComposerPrompt...');
-
-    // First open the composer
-    await vscode.commands.executeCommand('composer.openComposer');
-    await delay(1000);
-
-    // Then try to send the prompt
+async function sendPromptToChat(prompt: string): Promise<{ success: boolean; response?: string; error?: string }> {
     try {
-        await vscode.commands.executeCommand('composer.startComposerPrompt', prompt);
-    } catch {
-        // If that doesn't work, try sendToAgent
-        await vscode.commands.executeCommand('composer.sendToAgent', prompt);
+        // Open a new agent chat and focus it
+        console.log('Opening new agent chat...');
+        await vscode.commands.executeCommand('composer.newAgentChat');
+        await delay(1500);
+
+        console.log('Focusing composer...');
+        await vscode.commands.executeCommand('composer.focusComposer');
+        await delay(500);
+
+        // Try terminal chat as alternative - might have better command support
+        console.log('Trying terminal chat approach...');
+        try {
+            // Start terminal chat
+            await vscode.commands.executeCommand('workbench.action.terminal.chat.start');
+            await delay(1000);
+
+            // Try to run command with the prompt
+            await vscode.commands.executeCommand('workbench.action.terminal.chat.runCommand', prompt);
+            console.log('Terminal chat runCommand executed');
+            await delay(2000);
+        } catch (e) {
+            console.log(`Terminal chat approach failed: ${e}`);
+        }
+
+        // If terminal chat didn't work, try the regular composer with clipboard
+        console.log('Falling back to composer with clipboard...');
+        await vscode.commands.executeCommand('composer.newAgentChat');
+        await delay(1000);
+        await vscode.commands.executeCommand('composer.focusComposer');
+        await delay(500);
+
+        // Paste the prompt
+        await vscode.env.clipboard.writeText(prompt);
+        await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+        console.log('Prompt pasted - manual submit required');
+
+        // Log instructions for the user
+        console.log('*** PROMPT ENTERED - PRESS ENTER OR CLICK SEND TO SUBMIT ***');
+
+        // Wait for response
+        console.log('Waiting for response...');
+        await delay(5000);
+
+        return {
+            success: true,
+            response: 'Prompt sent via clipboard paste + return. Check Cursor UI for response.'
+        };
+
+    } catch (error) {
+        console.error('Failed to send prompt:', error);
+        return {
+            success: false,
+            error: String(error)
+        };
     }
-}
-
-async function tryAIChat(prompt: string): Promise<void> {
-    // Try new agent chat
-    console.log('Trying composer.newAgentChat...');
-    await vscode.commands.executeCommand('composer.newAgentChat');
-    await delay(1000);
-
-    // Type the prompt using the editor type command
-    await vscode.commands.executeCommand('type', { text: prompt });
-    await delay(200);
-
-    // Try to submit
-    await vscode.commands.executeCommand('workbench.action.chat.stopListeningAndSubmit');
-}
-
-async function tryComposer(prompt: string): Promise<void> {
-    // Try opening composer and using type command
-    console.log('Trying composer.focusComposer with type...');
-    await vscode.commands.executeCommand('composer.focusComposer');
-    await delay(500);
-
-    // Type the prompt
-    await vscode.commands.executeCommand('type', { text: prompt });
-    await delay(200);
-
-    // Press Enter to submit (key code 13)
-    await vscode.commands.executeCommand('type', { text: '\n' });
 }
 
 function delay(ms: number): Promise<void> {
@@ -179,4 +232,9 @@ function delay(ms: number): Promise<void> {
 
 export function deactivate() {
     console.log('Cursor Test Harness deactivated');
+    if (fileWatcher) {
+        fileWatcher.close();
+        fileWatcher = null;
+    }
+    writeStatus('stopped', 'Extension deactivated');
 }

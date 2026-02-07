@@ -9,13 +9,15 @@ suite('Prompt Sending', () => {
         const prompt = process.env.CURSOR_TEST_PROMPT || 'What is 2+2? Reply with just the number.';
         const outputFile = process.env.CURSOR_TEST_OUTPUT_FILE || '/tmp/cursor-prompt-result.json';
         const waitForLogin = process.env.CURSOR_TEST_WAIT_LOGIN === '1';
+        const interactiveMode = process.env.CURSOR_TEST_INTERACTIVE === '1';
+        const waitSeconds = parseInt(process.env.CURSOR_TEST_WAIT_SECONDS || '30', 10);
 
         console.log(`\n=== Sending prompt: "${prompt}" ===\n`);
 
         // If waiting for login, give user time to complete it
         if (waitForLogin) {
-            console.log('Waiting 15 seconds for user to complete login...');
-            await delay(15000);
+            console.log('Waiting 2 minutes for user to complete login...');
+            await delay(120000);
         }
 
         const results: Record<string, string> = {};
@@ -87,8 +89,14 @@ suite('Prompt Sending', () => {
                 console.log(`  Result: SUCCESS`);
 
                 // Wait to see the response
-                console.log('Waiting 30 seconds for agent response...');
-                await delay(30000);
+                if (interactiveMode) {
+                    console.log(`Interactive mode: keeping Cursor open for ${waitSeconds} seconds...`);
+                    console.log('Use this time to inspect the UI and test interactions.');
+                    await delay(waitSeconds * 1000);
+                } else {
+                    console.log(`Waiting ${waitSeconds} seconds for agent response...`);
+                    await delay(waitSeconds * 1000);
+                }
                 break;
             } catch (error) {
                 results[method.name] = `FAILED: ${error}`;
