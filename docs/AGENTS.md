@@ -76,29 +76,17 @@ docs/
 - Security best practices
 - Anything else that would help future developers
 
-### Suggested Formatting
+### Suggested Content Structure
 
-**File naming:**
-- Use Title Case: `Claude.md`, `Gemini.md`, `Agent Skills.md`
-- Match the common name of the tool or topic
+Agent documentation files should generally follow this structure:
 
-**Suggested content structure:**
-1. H1: Agent name + "Configuration"
+1. H1: Agent name
 2. Status note if not yet supported
-3. Configuration details
+3. Configuration details (file locations, hierarchy, format)
 4. Examples
 5. Sources at bottom
 
-**Code blocks:**
-- Use syntax highlighting (```json, ```yaml, ```toml, ```sh)
-- Include helpful comments
-- Show realistic examples
-
-**Links:**
-- Include "Sources" section with references
-- Use descriptive link text
-
-**Note**: These are guidelines, not strict requirements. Organize information in whatever way makes it most useful and clear.
+Organize information in whatever way makes it most useful and clear.
 
 ## For AI Agents
 
