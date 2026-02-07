@@ -475,6 +475,97 @@ run_test() {
 	return $test_result
 }
 
+run_test_manual() {
+	local test_name="$1"
+	local mode="$2"
+	local temp_dir="$3"
+	local temp_home="$4"
+	local test_dir="$TESTS_DIR/$test_name"
+	local sandbox_dir="$test_dir/sandbox"
+	local global_dir="$test_dir/global"
+
+	if [ ! -f "$test_dir/prompt.md" ]; then
+		panic 2 "$test_dir/prompt.md not found"
+	fi
+	if [ ! -f "$test_dir/expected.md" ]; then
+		panic 2 "$test_dir/expected.md not found"
+	fi
+
+	# Clean and repopulate temp directories (no content leaks between tests)
+	rm -rf "$temp_dir/"* "$temp_dir/".* 2>/dev/null || true
+	rm -rf "$temp_home/"* "$temp_home/".* 2>/dev/null || true
+
+	# Copy sandbox contents if it exists (sandbox is optional)
+	if [ -d "$sandbox_dir" ]; then
+		cp -R "$sandbox_dir/"* "$sandbox_dir/".* "$temp_dir/" 2>/dev/null || true
+	fi
+
+	# Copy global directory contents to temp home if it exists
+	if [ -d "$global_dir" ]; then
+		cp -R "$global_dir/"* "$global_dir/".* "$temp_home/" 2>/dev/null || true
+	fi
+
+	# No install or credential handling for manual mode —
+	# the user sets up their own agent environment.
+
+	local prompt=$(cat "$test_dir/prompt.md")
+	local expected=$(cat "$test_dir/expected.md")
+	expected=$(trim "$expected")
+
+	# Display test header
+	printf "\n"
+	printf "%b\n" "$(c heading '══════════════════════════════════════════════')"
+	printf "%b  %b\n" "$(c test "$test_name")" "$(c option "[$mode]")"
+	printf "%b\n" "$(c heading '══════════════════════════════════════════════')"
+	printf "\n"
+
+	# Show the prompt (no formatting — easy to copy/paste)
+	printf "%b\n\n" "$(c heading 'Prompt:')"
+	printf "%s\n" "$prompt"
+	printf "\n"
+
+	# Read response from user
+	printf "%b\n" "$(c heading 'Paste the agent'\''s response, then press Ctrl-D:')"
+
+	local output
+	output=$(cat)
+	output=$(trim "$output")
+
+	# Extract answer from <answer> tags (required)
+	local extracted_answer=$(extract_answer "$output")
+	extracted_answer=$(trim "$extracted_answer")
+
+	printf "\n"
+
+	# Check result
+	if [ -z "$extracted_answer" ]; then
+		print_test_fail "$test_name [$mode]"
+		printf "    %b\n" "$(c heading "Extracted:")"
+		print_indented 6 "<missing answer tags>"
+		printf "    %b\n" "$(c heading "Expected:")"
+		print_indented 6 "$expected"
+		printf "    %b\n" "$(c heading "Full output:")"
+		print_indented 6 "$output"
+		printf "\n%b" "$(c heading 'Press Enter to continue…')"
+		read -r _
+		return 1
+	elif [ "$extracted_answer" = "$expected" ]; then
+		print_test_pass "$test_name [$mode]"
+		return 0
+	else
+		print_test_fail "$test_name [$mode]"
+		printf "    %b\n" "$(c heading "Extracted:")"
+		print_indented 6 "$extracted_answer"
+		printf "    %b\n" "$(c heading "Expected:")"
+		print_indented 6 "$expected"
+		printf "    %b\n" "$(c heading "Full output:")"
+		print_indented 6 "$output"
+		printf "\n%b" "$(c heading 'Press Enter to continue…')"
+		read -r _
+		return 1
+	fi
+}
+
 display_result() {
 	local test_name="$1"
 	local result="$2"
@@ -542,7 +633,7 @@ show_help() {
 	printf "Test runner for AGENTS.md polyfill configuration.\n\n"
 
 	printf "$(c heading Arguments:)\n"
-	printf "  $(c agent AGENT)    Agent(s) to test: $(c_list agent $KNOWN_AGENTS), $(c agent all) (default: $(c agent all))\n"
+	printf "  $(c agent AGENT)    Agent(s) to test: $(c_list agent $KNOWN_AGENTS manual), $(c agent all) (default: $(c agent all))\n"
 	printf "  $(c test TEST)     Test(s) to run (default: $(c test all))\n\n"
 
 	printf "Arguments are auto-detected as agents or tests:\n"
@@ -578,7 +669,8 @@ show_help() {
 	printf "  $(c command test-agents.sh) $(c agent claude)                                # All tests on Claude\n"
 	printf "  $(c command test-agents.sh) $(c agent claude) $(c test basic-support)                  # Specific test on Claude\n"
 	printf "  $(c command test-agents.sh) $(c flag --mode) $(c option global)                         # All tests in global mode only\n"
-	printf "  $(c command test-agents.sh) $(c flag --debug) $(c option global) $(c agent claude) $(c test global-skills)   # Debug interactively\n\n"
+	printf "  $(c command test-agents.sh) $(c flag --debug) $(c option global) $(c agent claude) $(c test global-skills)   # Debug interactively\n"
+	printf "  $(c command test-agents.sh) $(c agent manual) $(c test basic-support)                 # Manual testing (any agent)\n\n"
 
 	printf "$(c heading Agents:)\n"
 	for agent in $KNOWN_AGENTS; do
@@ -590,6 +682,7 @@ show_help() {
 			printf "  $(c agent %-13s) $(c error ✗ not found)\n" "$agent"
 		fi
 	done
+	printf "  $(c agent %-13s) $(c success ✓ always)    Test any agent interactively\n" "manual"
 
 	printf "\n$(c heading Tests:)\n"
 	for test in $(discover_tests); do
@@ -1111,7 +1204,16 @@ main() {
 	local available_agents=$(discover_agents)
 	local available_tests=$(discover_tests)
 
-	if [ -z "$available_agents" ]; then
+	# Check if "manual" was explicitly requested (before agent validation)
+	local manual_requested=0
+	for arg in $agent_args; do
+		if [ "$arg" = "manual" ]; then
+			manual_requested=1
+			break
+		fi
+	done
+
+	if [ -z "$available_agents" ] && [ "$manual_requested" -eq 0 ]; then
 		panic 2 <<-end_panic
 			No agents found
 			Available agents: $(c_list agent $KNOWN_AGENTS)
@@ -1135,6 +1237,15 @@ main() {
 			else
 				tests="$tests $arg"
 			fi
+			continue
+		fi
+
+		# Check if it's "manual" (special pseudo-agent, always available)
+		if [ "$arg" = "manual" ]; then
+			if [ $switched_to_tests -eq 1 ]; then
+				panic 2 show_usage "Agent $(c agent "'$arg'") specified after test names"
+			fi
+			agents="$agents manual"
 			continue
 		fi
 
@@ -1194,10 +1305,30 @@ main() {
 
 	# Determine agents to run
 	local agents_to_run
+	local is_manual=0
 	if [ -z "$agents" ] || echo "$agents" | grep -q "\\ball\\b"; then
 		agents_to_run="$available_agents"
 	else
 		agents_to_run="$agents"
+	fi
+
+	# Check if manual is in the agent list
+	for agent in $agents_to_run; do
+		if [ "$agent" = "manual" ]; then
+			is_manual=1
+			break
+		fi
+	done
+
+	# Manual mode is exclusive — can't mix with real agents
+	if [ "$is_manual" -eq 1 ]; then
+		local non_manual=""
+		for agent in $agents_to_run; do
+			[ "$agent" != "manual" ] && non_manual="$non_manual $agent"
+		done
+		if [ -n "$(trim "$non_manual")" ]; then
+			panic 2 show_usage "$(c agent manual) cannot be combined with other agents"
+		fi
 	fi
 
 	# Determine tests to run
@@ -1245,6 +1376,72 @@ main() {
 	# Run tests
 	local total_passed=0
 	local total_failed=0
+
+	# Manual mode: sequential interactive execution
+	if [ "$is_manual" -eq 1 ]; then
+		# Count total tests
+		local total_tests=0
+		for test_name in $tests_to_run; do
+			for mode in $modes_to_run; do
+				case "$test_name" in
+					global-*)   [ "$mode" != "global" ] && continue ;;
+					project-*)  [ "$mode" != "project" ] && continue ;;
+					combined-*) [ "$mode" != "combined" ] && continue ;;
+				esac
+				total_tests=$((total_tests + 1))
+			done
+		done
+
+		# Create shared temp directories (reused across all tests)
+		local manual_temp_dir
+		manual_temp_dir=$(mktemp -d -t "universal-agents-test-XXXXXX")
+		local manual_temp_home
+		manual_temp_home=$(mktemp -d -t "universal-agents-home-XXXXXX")
+
+		printf "\n%b %b tests in %b mode\n" "$(c heading 'Manual:')" "$(c heading "$total_tests")" "$(c agent manual)"
+		printf "Tests run sequentially — paste each agent response when prompted.\n\n"
+
+		printf "%b (run the agent from here):\n" "$(c heading 'Working directory')"
+		printf "  %s\n\n" "$manual_temp_dir"
+		printf "%b\n" "$(c heading 'HOME directory:')"
+		printf "  %s\n" "$manual_temp_home"
+
+		for test_name in $tests_to_run; do
+			for mode in $modes_to_run; do
+				case "$test_name" in
+					global-*)   [ "$mode" != "global" ] && continue ;;
+					project-*)  [ "$mode" != "project" ] && continue ;;
+					combined-*) [ "$mode" != "combined" ] && continue ;;
+				esac
+
+				if run_test_manual "$test_name" "$mode" "$manual_temp_dir" "$manual_temp_home"; then
+					total_passed=$((total_passed + 1))
+				else
+					total_failed=$((total_failed + 1))
+				fi
+			done
+		done
+
+		# Clean up shared temp directories
+		rm -rf "$manual_temp_dir"
+		rm -rf "$manual_temp_home"
+
+		# Display summary
+		local total=$((total_passed + total_failed))
+
+		printf "\n"
+		if [ "$total_passed" -eq "$total" ]; then
+			printf "$(c success %d/%d passed)\n" "$total_passed" "$total"
+		else
+			printf "$(c error %d/%d passed)\n" "$total_passed" "$total"
+		fi
+
+		if [ "$total_failed" -gt 0 ]; then
+			exit 1
+		else
+			exit 0
+		fi
+	fi
 
 	# Initialize per-agent counters
 	for agent in $agents_to_run; do
