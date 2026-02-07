@@ -30,7 +30,7 @@ Brings standardized and centralized support for [AGENTS.md](https://agents.md) a
 
 AI coding agents shouldn't fragment your configuration. This project enables:
 
-- **Universal format** - Write AGENTS.md once, use it across major AI agents (Claude Code, Cursor, Gemini)
+- **Universal format** - Write AGENTS.md once, use it across major AI agents (Claude Code, Gemini CLI)
 - **Standard locations** - `.agents/` and `AGENTS.md` files in predictable places, not scattered proprietary formats
 - **No rebuild step** - Edit AGENTS.md files, they just work. No commands to run after changes.
 - **Native behavior** - Leverage each agent's built-in features (hot reload, skill discovery, etc.)
@@ -40,12 +40,12 @@ AI coding agents shouldn't fragment your configuration. This project enables:
 
 Out of the box, most agents have incomplete or missing AGENTS.md support:
 
-| Feature | Claude Code | Cursor Agent | Gemini CLI |
-|---------|-------------|--------------|------------|
-| 📄 **Basic support** | ❌ | ✅ [Root only](https://cursor.com/docs/context/rules) | ⚠️ [Configurable](https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html) |
-| 🪺 **Nested** | ❌ | ⚠️ [Broken](https://forum.cursor.com/t/nested-agents-md-files-not-being-loaded/138411) | ✅ |
-| 🎯 **Selective** | ❌ | ❌ | ❌ |
-| 🔧 **Skills** | ✅ [Native](https://agentskills.io) | ⚠️ [Experimental](https://cursor.com/docs/context/skills) | ⚠️ [Experimental](https://geminicli.com/docs/cli/skills/) |
+| Feature | Claude Code | Gemini CLI |
+|---------|-------------|------------|
+| 📄 **Basic support** | ❌ | ⚠️ [Configurable](https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html) |
+| 🪺 **Nested** | ❌ | ✅ |
+| 🎯 **Selective** | ❌ | ❌ |
+| 🔧 **Skills** | ✅ [Native](https://agentskills.io) | ⚠️ [Experimental](https://geminicli.com/docs/cli/skills/) |
 
 ## How It Works
 
