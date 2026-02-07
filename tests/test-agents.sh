@@ -176,12 +176,13 @@ extract_answer() {
 	local text="$1"
 
 	# Extract content between <answer> and </answer> tags
-	# Match the LAST occurrence to avoid backticked examples
+	# Start from the LAST <answer> tag to avoid matching tags the agent
+	# mentions while reasoning (e.g. "use `<answer>` delimiters")
 	# Returns empty string if tags are not found
 
 	if echo "$text" | grep -q "<answer>"; then
-		# Use perl for multiline matching, taking the last match to avoid backticked examples
-		echo "$text" | perl -0777 -ne 'my @matches = /<answer>\s*(.*?)\s*<\/answer>/gs; print $matches[-1] if @matches'
+		# Use perl: find the last <answer> tag, then extract to its </answer>
+		echo "$text" | perl -0777 -ne 'if (/.*<answer>\s*(.*?)\s*<\/answer>/gs) { print $1 }'
 	else
 		echo ""
 	fi
