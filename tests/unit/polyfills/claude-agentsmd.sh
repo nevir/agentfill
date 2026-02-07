@@ -5,7 +5,7 @@ run_polyfill_isolated() {
 	local temp_home
 	temp_home=$(mktemp -d)
 	local output
-	output=$(HOME="$temp_home" CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude/agentsmd.sh")
+	output=$(HOME="$temp_home" CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/agentsmd/claude.sh")
 	rm -rf "$temp_home"
 	echo "$output"
 }

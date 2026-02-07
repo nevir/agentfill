@@ -8,14 +8,14 @@ test_global_mode_creates_home_settings() {
 	local polyfill_backup=""
 	[ -f "$HOME/.claude/settings.json" ] && claude_backup=$(cat "$HOME/.claude/settings.json")
 	[ -f "$HOME/.gemini/settings.json" ] && gemini_backup=$(cat "$HOME/.gemini/settings.json")
-	[ -f "$HOME/.agents/polyfills/claude/agentsmd.sh" ] && polyfill_backup=$(cat "$HOME/.agents/polyfills/claude/agentsmd.sh")
+	[ -f "$HOME/.agents/polyfills/agentsmd/claude.sh" ] && polyfill_backup=$(cat "$HOME/.agents/polyfills/agentsmd/claude.sh")
 
 	run_install "$project_dir" -y --global
 
 	local result=0
 	assert_file_exists "$HOME/.claude/settings.json" &&
 	assert_file_exists "$HOME/.gemini/settings.json" &&
-	assert_file_exists "$HOME/.agents/polyfills/claude/agentsmd.sh" &&
+	assert_file_exists "$HOME/.agents/polyfills/agentsmd/claude.sh" &&
 	assert_file_not_exists ".claude/settings.json" &&
 	assert_file_not_exists ".gemini/settings.json" &&
 	assert_file_not_exists "AGENTS.md" || result=1
@@ -34,10 +34,10 @@ test_global_mode_creates_home_settings() {
 		rm -f "$HOME/.gemini/settings.json"
 	fi
 	if [ -n "$polyfill_backup" ]; then
-		mkdir -p "$HOME/.agents/polyfills"
-		echo "$polyfill_backup" > "$HOME/.agents/polyfills/claude/agentsmd.sh"
+		mkdir -p "$HOME/.agents/polyfills/agentsmd"
+		echo "$polyfill_backup" > "$HOME/.agents/polyfills/agentsmd/claude.sh"
 	else
-		rm -f "$HOME/.agents/polyfills/claude/agentsmd.sh"
+		rm -f "$HOME/.agents/polyfills/agentsmd/claude.sh"
 	fi
 
 	return $result
@@ -54,7 +54,7 @@ test_global_mode_polyfill_reference() {
 
 	local result=0
 	# Polyfill should reference absolute home path
-	assert_file_contains "$HOME/.claude/settings.json" "$HOME/.agents/polyfills/claude/agentsmd.sh" || result=1
+	assert_file_contains "$HOME/.claude/settings.json" "$HOME/.agents/polyfills/agentsmd/claude.sh" || result=1
 
 	# Restore backup
 	if [ -n "$claude_backup" ]; then
@@ -81,8 +81,8 @@ test_global_mode_single_agent() {
 		claude_backup=$(cat "$HOME/.claude/settings.json")
 		claude_existed=1
 	fi
-	if [ -f "$HOME/.agents/polyfills/claude/agentsmd.sh" ]; then
-		polyfill_backup=$(cat "$HOME/.agents/polyfills/claude/agentsmd.sh")
+	if [ -f "$HOME/.agents/polyfills/agentsmd/claude.sh" ]; then
+		polyfill_backup=$(cat "$HOME/.agents/polyfills/agentsmd/claude.sh")
 		polyfill_existed=1
 	fi
 
@@ -97,7 +97,7 @@ test_global_mode_single_agent() {
 		assert_file_not_exists "$HOME/.claude/settings.json" || result=1
 	fi
 	if [ $polyfill_existed -eq 0 ]; then
-		assert_file_not_exists "$HOME/.agents/polyfills/claude/agentsmd.sh" || result=1
+		assert_file_not_exists "$HOME/.agents/polyfills/agentsmd/claude.sh" || result=1
 	fi
 
 	# Restore backups
@@ -114,10 +114,10 @@ test_global_mode_single_agent() {
 		rm -f "$HOME/.claude/settings.json"
 	fi
 	if [ -n "$polyfill_backup" ]; then
-		mkdir -p "$HOME/.agents/polyfills"
-		echo "$polyfill_backup" > "$HOME/.agents/polyfills/claude/agentsmd.sh"
+		mkdir -p "$HOME/.agents/polyfills/agentsmd"
+		echo "$polyfill_backup" > "$HOME/.agents/polyfills/agentsmd/claude.sh"
 	elif [ $polyfill_existed -eq 0 ]; then
-		rm -f "$HOME/.agents/polyfills/claude/agentsmd.sh"
+		rm -f "$HOME/.agents/polyfills/agentsmd/claude.sh"
 	fi
 
 	return $result
@@ -130,7 +130,7 @@ test_default_mode_unchanged() {
 
 	assert_file_exists ".claude/settings.json" &&
 	assert_file_exists ".gemini/settings.json" &&
-	assert_file_exists ".agents/polyfills/claude/agentsmd.sh" &&
+	assert_file_exists ".agents/polyfills/agentsmd/claude.sh" &&
 	assert_file_not_exists "AGENTS.md"
 }
 
@@ -140,7 +140,7 @@ test_default_mode_polyfill_reference() {
 	run_install "$project_dir" -y . claude
 
 	# Polyfill should reference project directory path
-	assert_file_contains ".claude/settings.json" "\$CLAUDE_PROJECT_DIR/.agents/polyfills/claude/agentsmd.sh"
+	assert_file_contains ".claude/settings.json" "\$CLAUDE_PROJECT_DIR/.agents/polyfills/agentsmd/claude.sh"
 }
 
 test_config_level_creates_settings_only() {
@@ -150,7 +150,7 @@ test_config_level_creates_settings_only() {
 
 	# Should create settings.json but not polyfill scripts
 	assert_file_exists ".claude/settings.json" &&
-	assert_file_not_exists ".agents/polyfills/claude/agentsmd.sh"
+	assert_file_not_exists ".agents/polyfills/agentsmd/claude.sh"
 }
 
 test_config_level_settings_has_no_hooks() {
@@ -178,6 +178,6 @@ test_full_level_creates_polyfills() {
 
 	# Should create both settings.json and polyfill scripts
 	assert_file_exists ".claude/settings.json" &&
-	assert_file_exists ".agents/polyfills/claude/agentsmd.sh" &&
+	assert_file_exists ".agents/polyfills/agentsmd/claude.sh" &&
 	assert_file_contains ".claude/settings.json" "hooks"
 }

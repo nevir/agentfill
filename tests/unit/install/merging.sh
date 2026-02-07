@@ -14,7 +14,7 @@ EOF
 	run_install "$project_dir" -y . claude
 
 	assert_file_contains ".claude/settings.json" "npm" &&
-	assert_file_contains ".claude/settings.json" "claude/agentsmd.sh"
+	assert_file_contains ".claude/settings.json" "agentsmd/claude.sh"
 }
 
 test_merge_gemini_existing_context() {

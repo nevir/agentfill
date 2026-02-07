@@ -6,7 +6,7 @@ test_multiple_agents_on_command_line() {
 
 	assert_file_exists ".claude/settings.json" &&
 	assert_file_exists ".gemini/settings.json" &&
-	assert_file_exists ".agents/polyfills/claude/agentsmd.sh" &&
+	assert_file_exists ".agents/polyfills/agentsmd/claude.sh" &&
 	assert_json_has_key ".claude/settings.json" "hooks.SessionStart" &&
 	assert_json_has_key ".gemini/settings.json" "context.fileName"
 }
@@ -18,7 +18,7 @@ test_multiple_agents_reversed_order() {
 
 	assert_file_exists ".claude/settings.json" &&
 	assert_file_exists ".gemini/settings.json" &&
-	assert_file_exists ".agents/polyfills/claude/agentsmd.sh" &&
+	assert_file_exists ".agents/polyfills/agentsmd/claude.sh" &&
 	assert_json_has_key ".claude/settings.json" "hooks.SessionStart" &&
 	assert_json_has_key ".gemini/settings.json" "context.fileName"
 }
@@ -30,7 +30,7 @@ test_single_agent_explicit() {
 
 	assert_file_exists ".claude/settings.json" &&
 	assert_file_not_exists ".gemini/settings.json" &&
-	assert_file_exists ".agents/polyfills/claude/agentsmd.sh"
+	assert_file_exists ".agents/polyfills/agentsmd/claude.sh"
 }
 
 test_auto_confirm_uses_all_agents() {
@@ -41,7 +41,7 @@ test_auto_confirm_uses_all_agents() {
 
 	assert_file_exists ".claude/settings.json" &&
 	assert_file_exists ".gemini/settings.json" &&
-	assert_file_exists ".agents/polyfills/claude/agentsmd.sh"
+	assert_file_exists ".agents/polyfills/agentsmd/claude.sh"
 }
 
 test_invalid_agent_error() {
@@ -80,14 +80,14 @@ test_global_mode_multiple_agents() {
 	local polyfill_backup=""
 	[ -f "$HOME/.claude/settings.json" ] && claude_backup=$(cat "$HOME/.claude/settings.json")
 	[ -f "$HOME/.gemini/settings.json" ] && gemini_backup=$(cat "$HOME/.gemini/settings.json")
-	[ -f "$HOME/.agents/polyfills/claude/agentsmd.sh" ] && polyfill_backup=$(cat "$HOME/.agents/polyfills/claude/agentsmd.sh")
+	[ -f "$HOME/.agents/polyfills/agentsmd/claude.sh" ] && polyfill_backup=$(cat "$HOME/.agents/polyfills/agentsmd/claude.sh")
 
 	run_install "$project_dir" -y --global claude gemini
 
 	local result=0
 	assert_file_exists "$HOME/.claude/settings.json" &&
 	assert_file_exists "$HOME/.gemini/settings.json" &&
-	assert_file_exists "$HOME/.agents/polyfills/claude/agentsmd.sh" || result=1
+	assert_file_exists "$HOME/.agents/polyfills/agentsmd/claude.sh" || result=1
 
 	# Restore backups
 	if [ -n "$claude_backup" ]; then
@@ -103,10 +103,10 @@ test_global_mode_multiple_agents() {
 		rm -f "$HOME/.gemini/settings.json"
 	fi
 	if [ -n "$polyfill_backup" ]; then
-		mkdir -p "$HOME/.agents/polyfills/claude"
-		echo "$polyfill_backup" > "$HOME/.agents/polyfills/claude/agentsmd.sh"
+		mkdir -p "$HOME/.agents/polyfills/agentsmd"
+		echo "$polyfill_backup" > "$HOME/.agents/polyfills/agentsmd/claude.sh"
 	else
-		rm -f "$HOME/.agents/polyfills/claude/agentsmd.sh"
+		rm -f "$HOME/.agents/polyfills/agentsmd/claude.sh"
 	fi
 
 	return $result

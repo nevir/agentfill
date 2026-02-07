@@ -12,7 +12,8 @@ tests/unit/
 │   ├── merging.sh          # Merging with existing configs
 │   └── special-cases.sh    # Edge cases (dry-run, polyfill updates)
 └── polyfills/
-    └── claude-agentsmd.sh  # Claude polyfill script tests
+    ├── claude-agentsmd.sh      # Claude polyfill script tests
+    └── cursor-ide-agentsmd.sh  # Cursor IDE polyfill script tests
 ```
 
 ## Running Unit Tests
@@ -83,7 +84,7 @@ assert_file_not_exists ".gemini/settings.json"
 Verify a file contains a pattern (uses `grep -q`).
 
 ```sh
-assert_file_contains ".claude/settings.json" "claude/agentsmd.sh"
+assert_file_contains ".claude/settings.json" "agentsmd/claude.sh"
 assert_file_contains "AGENTS.md" "My custom instructions"
 ```
 
@@ -365,7 +366,7 @@ EOF
 run_install "$project_dir" -y . claude
 
 assert_file_contains ".claude/settings.json" "npm" &&
-assert_file_contains ".claude/settings.json" "claude/agentsmd.sh"
+assert_file_contains ".claude/settings.json" "agentsmd/claude.sh"
 ```
 
 ### Testing Polyfill Scripts
@@ -376,7 +377,7 @@ cat > "$project_dir/AGENTS.md" <<-end_agentsmd
 end_agentsmd
 
 local output
-output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/claude/agentsmd.sh")
+output=$(CLAUDE_PROJECT_DIR="$project_dir" sh "$REPO_ROOT/.agents/polyfills/agentsmd/claude.sh")
 
 echo "$output" | grep -q "<root_agentsmd>" &&
 echo "$output" | grep -q "# Test Content"

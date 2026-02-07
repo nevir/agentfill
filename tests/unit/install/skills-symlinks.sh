@@ -205,14 +205,14 @@ test_global_mode_creates_skills_hook() {
 	HOME="$fake_home" run_install "$project_dir" -y --global . claude
 
 	# Verify skills hook was created
-	if [ ! -f "$fake_home/.agents/polyfills/claude/skills.sh" ]; then
-		echo "Expected skills.sh hook to be created at $fake_home/.agents/polyfills/claude/skills.sh"
+	if [ ! -f "$fake_home/.agents/polyfills/skills/claude.sh" ]; then
+		echo "Expected skills.sh hook to be created at $fake_home/.agents/polyfills/skills/claude.sh"
 		rm -rf "$fake_home"
 		return 1
 	fi
 
 	# Verify it's executable
-	if [ ! -x "$fake_home/.agents/polyfills/claude/skills.sh" ]; then
+	if [ ! -x "$fake_home/.agents/polyfills/skills/claude.sh" ]; then
 		echo "Expected skills.sh to be executable"
 		rm -rf "$fake_home"
 		return 1
@@ -230,8 +230,8 @@ test_global_mode_settings_include_skills_hook() {
 	HOME="$fake_home" run_install "$project_dir" -y --global . claude
 
 	# Verify settings.json contains skills hook reference
-	if ! grep -q "skills.sh" "$fake_home/.claude/settings.json"; then
-		echo "Expected settings.json to reference skills.sh"
+	if ! grep -q "skills/claude.sh" "$fake_home/.claude/settings.json"; then
+		echo "Expected settings.json to reference skills/claude.sh"
 		cat "$fake_home/.claude/settings.json"
 		rm -rf "$fake_home"
 		return 1
@@ -253,7 +253,7 @@ test_global_skills_hook_creates_symlink_with_project_skills() {
 	echo "# Test skill" > ".agents/skills/test-skill/SKILL.md"
 
 	# Run the skills hook directly
-	CLAUDE_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/claude/skills.sh"
+	CLAUDE_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/skills/claude.sh"
 
 	# Verify symlink was created
 	if [ ! -L ".claude/skills" ]; then
@@ -285,7 +285,7 @@ test_global_skills_hook_fallback_to_global_skills() {
 	echo "# Global skill" > "$fake_home/.agents/skills/global-skill/SKILL.md"
 
 	# Run the skills hook directly
-	CLAUDE_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/claude/skills.sh"
+	CLAUDE_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/skills/claude.sh"
 
 	# Verify symlink was created and points to global skills
 	if [ ! -L ".claude/skills" ]; then
@@ -319,7 +319,7 @@ test_global_skills_hook_prefers_project_over_global() {
 	echo "# Global skill" > "$fake_home/.agents/skills/global-skill/SKILL.md"
 
 	# Run the skills hook directly
-	CLAUDE_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/claude/skills.sh"
+	CLAUDE_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/skills/claude.sh"
 
 	# Verify symlink points to project skills (preferred)
 	if [ ! -L ".claude/skills" ]; then
@@ -349,7 +349,7 @@ test_global_skills_hook_silent_without_skills() {
 	# Do NOT create any skills directories
 
 	# Run the skills hook directly - should exit silently
-	local output=$(CLAUDE_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/claude/skills.sh" 2>&1)
+	local output=$(CLAUDE_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/skills/claude.sh" 2>&1)
 
 	# Verify no symlink created
 	if [ -e ".claude/skills" ]; then
@@ -385,7 +385,7 @@ test_global_skills_hook_warns_on_existing_directory() {
 	echo "# User skill" > ".claude/skills/user-skill.md"
 
 	# Run the skills hook and capture stderr
-	local output=$(CLAUDE_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/claude/skills.sh" 2>&1)
+	local output=$(CLAUDE_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/skills/claude.sh" 2>&1)
 
 	# Verify warning was printed
 	if ! echo "$output" | grep -q "Warning"; then
@@ -425,7 +425,7 @@ test_global_skills_hook_outputs_restart_message() {
 	echo "# Test skill" > ".agents/skills/test-skill/SKILL.md"
 
 	# Run the skills hook and capture output
-	local output=$(CLAUDE_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/claude/skills.sh" 2>&1)
+	local output=$(CLAUDE_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/skills/claude.sh" 2>&1)
 
 	# Verify restart message was output with XML tags
 	if ! echo "$output" | grep -q "<skills_setup>"; then
@@ -462,7 +462,7 @@ test_global_skills_hook_silent_when_symlink_exists() {
 	ln -s "../.agents/skills" ".claude/skills"
 
 	# Run the skills hook and capture output
-	local output=$(CLAUDE_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/claude/skills.sh" 2>&1)
+	local output=$(CLAUDE_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/skills/claude.sh" 2>&1)
 
 	# Verify no output (symlink already exists)
 	if [ -n "$output" ]; then
@@ -481,14 +481,14 @@ test_project_mode_does_not_create_skills_hook() {
 	run_install "$project_dir" -y . claude
 
 	# Verify skills hook was NOT created (project mode doesn't use hooks)
-	if [ -f ".agents/polyfills/claude/skills.sh" ]; then
+	if [ -f ".agents/polyfills/skills/claude.sh" ]; then
 		echo "skills.sh should not be created in project mode"
 		return 1
 	fi
 
 	# Verify settings.json does NOT reference skills hook
-	if grep -q "skills.sh" ".claude/settings.json"; then
-		echo "settings.json should not reference skills.sh in project mode"
+	if grep -q "skills/claude.sh" ".claude/settings.json"; then
+		echo "settings.json should not reference skills/claude.sh in project mode"
 		return 1
 	fi
 
@@ -507,14 +507,14 @@ test_gemini_global_mode_creates_skills_hook() {
 	HOME="$fake_home" run_install "$project_dir" -y --global . gemini
 
 	# Verify skills hook was created
-	if [ ! -f "$fake_home/.agents/polyfills/gemini/skills.sh" ]; then
-		echo "Expected skills.sh hook to be created at $fake_home/.agents/polyfills/gemini/skills.sh"
+	if [ ! -f "$fake_home/.agents/polyfills/skills/gemini.sh" ]; then
+		echo "Expected skills.sh hook to be created at $fake_home/.agents/polyfills/skills/gemini.sh"
 		rm -rf "$fake_home"
 		return 1
 	fi
 
 	# Verify it's executable
-	if [ ! -x "$fake_home/.agents/polyfills/gemini/skills.sh" ]; then
+	if [ ! -x "$fake_home/.agents/polyfills/skills/gemini.sh" ]; then
 		echo "Expected skills.sh to be executable"
 		rm -rf "$fake_home"
 		return 1
@@ -532,8 +532,8 @@ test_gemini_global_mode_settings_include_skills_hook() {
 	HOME="$fake_home" run_install "$project_dir" -y --global . gemini
 
 	# Verify settings.json contains skills hook reference
-	if ! grep -q "skills.sh" "$fake_home/.gemini/settings.json"; then
-		echo "Expected settings.json to reference skills.sh"
+	if ! grep -q "skills/gemini.sh" "$fake_home/.gemini/settings.json"; then
+		echo "Expected settings.json to reference skills/gemini.sh"
 		cat "$fake_home/.gemini/settings.json"
 		rm -rf "$fake_home"
 		return 1
@@ -563,7 +563,7 @@ test_gemini_global_skills_hook_creates_symlink() {
 	echo "# Test skill" > ".agents/skills/test-skill/SKILL.md"
 
 	# Run the skills hook directly
-	GEMINI_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/gemini/skills.sh"
+	GEMINI_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/skills/gemini.sh"
 
 	# Verify symlink was created
 	if [ ! -L ".gemini/skills" ]; then
@@ -595,7 +595,7 @@ test_gemini_global_skills_hook_fallback_to_global() {
 	echo "# Global skill" > "$fake_home/.agents/skills/global-skill/SKILL.md"
 
 	# Run the skills hook directly
-	GEMINI_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/gemini/skills.sh"
+	GEMINI_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/skills/gemini.sh"
 
 	# Verify symlink was created and points to global skills
 	if [ ! -L ".gemini/skills" ]; then
@@ -629,7 +629,7 @@ test_gemini_global_skills_hook_prefers_project() {
 	echo "# Global skill" > "$fake_home/.agents/skills/global-skill/SKILL.md"
 
 	# Run the skills hook directly
-	GEMINI_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/gemini/skills.sh"
+	GEMINI_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/skills/gemini.sh"
 
 	# Verify symlink points to project skills (preferred)
 	if [ ! -L ".gemini/skills" ]; then
@@ -659,7 +659,7 @@ test_gemini_global_skills_hook_silent_without_skills() {
 	# Do NOT create any skills directories
 
 	# Run the skills hook directly - should exit silently
-	local output=$(GEMINI_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/gemini/skills.sh" 2>&1)
+	local output=$(GEMINI_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/skills/gemini.sh" 2>&1)
 
 	# Verify no symlink created
 	if [ -e ".gemini/skills" ]; then
@@ -695,7 +695,7 @@ test_gemini_global_skills_hook_warns_on_existing() {
 	echo "# User skill" > ".gemini/skills/user-skill.md"
 
 	# Run the skills hook and capture stderr
-	local output=$(GEMINI_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/gemini/skills.sh" 2>&1)
+	local output=$(GEMINI_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/skills/gemini.sh" 2>&1)
 
 	# Verify warning was printed
 	if ! echo "$output" | grep -q "Warning"; then
@@ -735,7 +735,7 @@ test_gemini_global_skills_hook_outputs_restart_message() {
 	echo "# Test skill" > ".agents/skills/test-skill/SKILL.md"
 
 	# Run the skills hook and capture output
-	local output=$(GEMINI_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/gemini/skills.sh" 2>&1)
+	local output=$(GEMINI_PROJECT_DIR="$project_dir" HOME="$fake_home" sh "$fake_home/.agents/polyfills/skills/gemini.sh" 2>&1)
 
 	# Verify restart message was output with XML tags
 	if ! echo "$output" | grep -q "<skills_setup>"; then
@@ -762,7 +762,7 @@ test_gemini_project_mode_no_skills_hook() {
 	run_install "$project_dir" -y . gemini
 
 	# Verify skills hook was NOT created (project mode doesn't use hooks)
-	if [ -f ".agents/polyfills/gemini/skills.sh" ]; then
+	if [ -f ".agents/polyfills/skills/gemini.sh" ]; then
 		echo "skills.sh should not be created in project mode"
 		return 1
 	fi

@@ -23,7 +23,7 @@ Both support the Agent Skills specification natively.
 - **Cursor IDE**: Reads root-level AGENTS.md files automatically. Supports selective loading (same mechanism as CLAUDE.md). Does not support nested AGENTS.md files.
 - **Cursor CLI**: AGENTS.md is **not preloaded in context automatically**. Users must manually reference the file in each conversation.
 
-**Status**: Partial support in universal-agents (limited by CLI limitations)
+**Status**: Supported for Cursor IDE (via `sessionStart` hook). Cursor CLI not supported (no hooks).
 
 ## Configuration File Location
 
@@ -170,11 +170,16 @@ Project-level configuration is limited to permissions only.
 
 ## Universal-Agents Integration
 
-Current integration approach:
-- Configure permissions via project-level `.cursor/cli.json`
-- Use symlinks: `ln -s ../.agents/skills .cursor/skills`
-- **Cannot use AGENTS.md auto-loading** due to CLI limitations
-- Alternative: Convert AGENTS.md to `.cursor/rules/` format (automatically loaded)
+**Status**: Supported (Cursor IDE only; Cursor CLI lacks hooks)
+
+**Cursor IDE** integration uses a `sessionStart` hook to polyfill nested AGENTS.md support:
+
+- **AGENTS.md polyfill**: `.agents/polyfills/agentsmd/cursor-ide.sh` discovers all AGENTS.md files and injects them via JSON `additional_context`
+- **Hook config**: `.cursor/hooks.json` configures the `sessionStart` hook
+- **Skills**: `.cursor/skills/` symlinked to `../.agents/skills/` for native discovery
+- **How it works**: The hook outputs `{"additional_context": "...", "continue": true}` — Cursor injects the string into agent context at session start
+
+**Cursor CLI** cannot be integrated due to lack of hooks support ([open feature request](https://forum.cursor.com/t/hooks-for-cursor-cli-aka-cursor-agent/137847)).
 
 ## Sources
 

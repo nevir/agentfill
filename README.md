@@ -50,6 +50,8 @@ Out of the box, most agents have incomplete or missing AGENTS.md support:
 
 **Claude Code:** A [SessionStart hook](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/hooks) discovers all AGENTS.md files in the project and injects them into context with precedence instructions. The root AGENTS.md is pre-loaded; nested files are loaded on-demand as Claude works in specific directories. Skills are symlinked from `.agents/skills/` to `.claude/skills/` for native discovery and hot reloading.
 
+**Cursor IDE:** A [sessionStart hook](https://cursor.com/docs/agent/hooks) discovers all AGENTS.md files and injects them into context via JSON `additional_context`. The root AGENTS.md is pre-loaded; nested files are loaded on-demand as Cursor works in specific directories. Skills are symlinked from `.agents/skills/` to `.cursor/skills/` for native discovery.
+
 **Gemini CLI:** Gemini's [`context.fileName`](https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html) setting is configured to load `AGENTS.md` alongside `GEMINI.md` - Gemini natively walks the directory tree and applies them with proper precedence, so no polyfill is needed for AGENTS.md loading. Skills are symlinked from `.agents/skills/` to `.gemini/skills/` for native discovery.
 
 ## Usage
