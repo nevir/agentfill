@@ -2,7 +2,7 @@
 
 A guide to writing portable agent skills for the [Agent Skills specification](https://agentskills.io). Skills written to this spec work across 25+ AI coding agents including Claude Code, Gemini CLI, GitHub Copilot, Cursor, Codex, Goose, Windsurf, and more.
 
-In a universal-agents project, skills live in `.agents/skills/` and are symlinked to each agent's native directory (`.claude/skills/`, `.gemini/skills/`, etc.) for automatic discovery.
+In an agentfill project, skills live in `.agents/skills/` and are symlinked to each agent's native directory (`.claude/skills/`, `.gemini/skills/`, etc.) for automatic discovery.
 
 ## SKILL.md Format
 
@@ -241,9 +241,9 @@ The most effective approach is iterative:
 - Descriptions that are too vague or too specific
 - Monolithic skills that try to do everything — split into focused skills instead
 
-## Using Skills with universal-agents
+## Using Skills with agentfill
 
-In a universal-agents project, `.agents/skills/` is the shared skill directory. The install script creates symlinks from each agent's native directory:
+In an agentfill project, `.agents/skills/` is the shared skill directory. The install script creates symlinks from each agent's native directory:
 
 ```
 .agents/skills/my-skill/SKILL.md

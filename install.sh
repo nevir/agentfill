@@ -516,7 +516,7 @@ template_claude_hook() {
 		agent_files=$(find . -name "AGENTS.md" -type f)
 
 		# Check for global AGENTS.md if global install exists
-		# Detection: check if universal-agents is installed globally by checking for global polyfill directory
+		# Detection: check if agentfill is installed globally by checking for global polyfill directory
 		has_global_agentsmd=0
 		if [ -d "$HOME/.agents/polyfills" ] && [ -f "$HOME/AGENTS.md" ]; then
 			has_global_agentsmd=1

@@ -28,7 +28,7 @@ docs/
   - **Development Process**: Iterative workflow for creating effective skills
   - **Ecosystem**: Specification, directories, community resources
 
-- **[Comparison with Similar Projects](Comparison.md)** - Comprehensive analysis comparing universal-agents with similar projects and standards:
+- **[Comparison with Similar Projects](Comparison.md)** - Comprehensive analysis comparing agentfill with similar projects and standards:
   - **Configuration Management Tools**: Ruler, OpenSkills, Symlinks, Codebase Context Specification
   - **Standards & Protocols**: AGENTS.md standard, MCP (Model Context Protocol), Agent2Agent, .aiignore
   - **Agent-Specific Systems**: Detailed coverage of 10+ coding agents (Continue.dev, Windsurf, Cline, Tabnine, Copilot, Replit Agent, OpenHands, Cody)

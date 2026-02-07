@@ -9,7 +9,7 @@ Cursor provides both an IDE and a standalone CLI agent. These are independent pr
 
 Both support the Agent Skills specification natively.
 
-**Universal-agents naming**: `install.sh` uses `cursor` as the agent name (both products share the same configuration). The test runner (`test-agents.sh`) distinguishes `cursor-cli` and `cursor-ide` as separate test agents since they have different execution methods.
+**agentfill naming**: `install.sh` uses `cursor` as the agent name (both products share the same configuration). The test runner (`test-agents.sh`) distinguishes `cursor-cli` and `cursor-ide` as separate test agents since they have different execution methods.
 
 **AGENTS.md Support Status**:
 
@@ -168,7 +168,7 @@ Rules are automatically loaded based on file patterns.
 **Note**: Cursor CLI does NOT support `.local.json` variants.
 Project-level configuration is limited to permissions only.
 
-## Universal-Agents Integration
+## agentfill Integration
 
 **Status**: Supported (Cursor IDE only; Cursor CLI lacks hooks)
 

@@ -1,6 +1,6 @@
-# Universal Agents Context
+# agentfill Context
 
-Project-specific conventions for creating skills in a [universal-agents](https://github.com/agentsmd/universal-agents) project.
+Project-specific conventions for creating skills in an [agentfill](https://github.com/nevir/agentfill) project.
 
 ## Shared Skills Directory
 

@@ -4,7 +4,7 @@
 
 GitHub Copilot CLI is GitHub's command-line coding agent. It features full Agent Skills support (announced December 2025), custom agents, and automatic loading of cross-agent context files including `AGENTS.md` and `.claude/skills/`.
 
-**Status**: Not yet supported by universal-agents install script
+**Status**: Not yet supported by agentfill install script
 
 ## Configuration File Location
 
@@ -112,7 +112,7 @@ Copilot automatically loads:
 
 ## Future Integration
 
-When universal-agents adds Copilot support, it will likely:
+When agentfill adds Copilot support, it will likely:
 - Use symlinks to both `.github/skills/` and `.claude/skills/`
 - Leverage native AGENTS.md auto-loading
 - Potentially create custom agents at `.github/agents/`

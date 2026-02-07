@@ -1,11 +1,11 @@
-# Universal Agents
+# agentfill
 
 A "polyfill" that standardizes and centralizes [AGENTS.md](https://agents.md) configuration and [Agent Skills](https://agentskills.io) support within your repository.
 
 ## Installation
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/agentsmd/universal-agents/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/nevir/agentfill/main/install.sh | sh
 ```
 
 ## What This Does

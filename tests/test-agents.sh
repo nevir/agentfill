@@ -231,7 +231,7 @@ run_debug() {
 
 	# Create isolated temp directory for test (project working directory)
 	local temp_dir
-	temp_dir=$(mktemp -d -t "universal-agents-test-XXXXXX")
+	temp_dir=$(mktemp -d -t "agentfill-test-XXXXXX")
 
 	# Copy sandbox contents if it exists (sandbox is optional)
 	if [ -d "$sandbox_dir" ]; then
@@ -240,7 +240,7 @@ run_debug() {
 
 	# Create temp home directory for isolated global installs
 	local temp_home
-	temp_home=$(mktemp -d -t "universal-agents-home-XXXXXX")
+	temp_home=$(mktemp -d -t "agentfill-home-XXXXXX")
 
 	# Copy agent credentials from real HOME (for authentication)
 	copy_agent_credentials "$agent" "$HOME" "$temp_home"
@@ -351,7 +351,7 @@ run_test() {
 
 	# Create isolated temp directory for test (project working directory)
 	local temp_dir
-	temp_dir=$(mktemp -d -t "universal-agents-test-XXXXXX")
+	temp_dir=$(mktemp -d -t "agentfill-test-XXXXXX")
 
 	# Copy sandbox contents if it exists (sandbox is optional)
 	if [ -d "$sandbox_dir" ]; then
@@ -360,7 +360,7 @@ run_test() {
 
 	# Create temp home directory for isolated global installs
 	local temp_home
-	temp_home=$(mktemp -d -t "universal-agents-home-XXXXXX")
+	temp_home=$(mktemp -d -t "agentfill-home-XXXXXX")
 
 	# Copy agent credentials from real HOME (for authentication)
 	# This copies the agent's config dir but removes settings files
@@ -918,7 +918,7 @@ run_test_parallel() {
 
 	# Create isolated temp directory for test (project working directory)
 	local temp_dir
-	temp_dir=$(mktemp -d -t "universal-agents-test-XXXXXX")
+	temp_dir=$(mktemp -d -t "agentfill-test-XXXXXX")
 
 	# Copy sandbox contents if it exists (sandbox is optional)
 	if [ -d "$sandbox_dir" ]; then
@@ -927,7 +927,7 @@ run_test_parallel() {
 
 	# Create temp home directory for isolated global installs
 	local temp_home
-	temp_home=$(mktemp -d -t "universal-agents-home-XXXXXX")
+	temp_home=$(mktemp -d -t "agentfill-home-XXXXXX")
 
 	# Copy agent credentials from real HOME (for authentication)
 	copy_agent_credentials "$agent" "$REAL_HOME" "$temp_home"
@@ -1417,9 +1417,9 @@ main() {
 
 		# Create shared temp directories (reused across all tests)
 		local manual_temp_dir
-		manual_temp_dir=$(mktemp -d -t "universal-agents-test-XXXXXX")
+		manual_temp_dir=$(mktemp -d -t "agentfill-test-XXXXXX")
 		local manual_temp_home
-		manual_temp_home=$(mktemp -d -t "universal-agents-home-XXXXXX")
+		manual_temp_home=$(mktemp -d -t "agentfill-home-XXXXXX")
 
 		# Symlink macOS Keychains for agents that use the system keychain
 		if [ -d "$HOME/Library/Keychains" ]; then

@@ -4,7 +4,7 @@
 
 Aider is a terminal-based AI pair programming tool. It does **not** have a skills system comparable to the Agent Skills specification, but uses a conventions system (`read:`) for loading context files and coding standards.
 
-**Status**: Not yet supported by universal-agents install script
+**Status**: Not yet supported by agentfill install script
 
 ## Configuration File Locations
 
@@ -121,7 +121,7 @@ The hierarchy-based loading (home -> git root -> current dir) provides the overr
 
 ## Future Integration
 
-When universal-agents adds Aider support, it will likely:
+When agentfill adds Aider support, it will likely:
 - Add AGENTS.md to the `read:` list in `.aider.conf.yml`
 - Support project and global modes only (no local mode)
 - Use YAML-specific merging utilities

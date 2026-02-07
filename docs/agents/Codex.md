@@ -4,7 +4,7 @@
 
 OpenAI Codex CLI is OpenAI's command-line coding agent. It features full native support for the Agent Skills specification, a built-in skill installer, and environment variable configuration for custom skill directories.
 
-**Status**: Not yet supported by universal-agents install script
+**Status**: Not yet supported by agentfill install script
 
 ## Configuration File Location
 
@@ -156,7 +156,7 @@ $skill-installer install https://github.com/openai/skills/tree/main/skills/creat
 
 ## Future Integration
 
-When universal-agents adds Codex support, it will likely:
+When agentfill adds Codex support, it will likely:
 - Create TOML-specific utilities for config merging
 - Support global mode primarily
 - Use symlinks: `ln -s .agents/skills .codex/skills`

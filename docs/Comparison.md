@@ -1,6 +1,6 @@
-# Universal Agents: Comparison with Similar Projects
+# agentfill: Comparison with Similar Projects
 
-This document compares universal-agents with similar projects in the AI coding agent configuration space, analyzing different approaches to solving the problem of fragmented agent configuration standards.
+This document compares agentfill with similar projects in the AI coding agent configuration space, analyzing different approaches to solving the problem of fragmented agent configuration standards.
 
 ## Executive Summary
 
@@ -8,7 +8,7 @@ The AI coding agent ecosystem suffers from configuration fragmentation, with eac
 
 **Key Projects Analyzed:**
 
-- **Universal Agents** (this project): Hook-based polyfill implementing full AGENTS.md spec (nested + selective loading) without file duplication. Currently supports Claude Code and Gemini CLI.
+- **agentfill** (this project): Hook-based polyfill implementing full AGENTS.md spec (nested + selective loading) without file duplication. Currently supports Claude Code and Gemini CLI.
 
 - **Ruler**: Centralized rule management with automatic distribution to tool-specific files. Supports many agents but requires sync workflow and maintains duplicate files.
 
@@ -20,7 +20,7 @@ The AI coding agent ecosystem suffers from configuration fragmentation, with eac
 
 - **Context Exclusion Standards**: Push toward `.aiignore` as universal standard for security/privacy (currently fragmented across .cursorignore, .aiexclude, etc.).
 
-**Universal Agents' Unique Position**: Only solution providing full AGENTS.md spec without file duplication or sync steps, using agent-native extension mechanisms (hooks/config). Trade-off is limited agent support (2 vs many) for deeper, cleaner integration.
+**agentfill' Unique Position**: Only solution providing full AGENTS.md spec without file duplication or sync steps, using agent-native extension mechanisms (hooks/config). Trade-off is limited agent support (2 vs many) for deeper, cleaner integration.
 
 **The Broader Ecosystem**: Beyond configuration files, the industry is establishing protocols for agent interoperability (MCP, A2A), context engineering, and security. Each AI coding tool has distinct configuration approaches, from Continue.dev's YAML to Windsurf's memories system.
 
@@ -29,7 +29,7 @@ The AI coding agent ecosystem suffers from configuration fragmentation, with eac
 - [The Problem Space](#the-problem-space)
 - [The AGENTS.md Standard](#the-agentsmd-standard)
 - [Project Comparison](#project-comparison)
-  - [Universal Agents (This Project)](#universal-agents-this-project)
+  - [agentfill (This Project)](#agentfill-this-project)
   - [Ruler](#ruler)
   - [Rulesync](#rulesync)
   - [OpenSkills](#openskills)
@@ -89,15 +89,15 @@ The AGENTS.md specification includes:
 
 ## Project Comparison
 
-### Universal Agents (This Project)
+### agentfill (This Project)
 
-**Repository**: github.com/agentsmd/universal-agents (assumed)
+**Repository**: github.com/nevir/agentfill (assumed)
 
 **Approach**: Polyfill/hook-based implementation that adds AGENTS.md support to agents that don't natively support it (or have incomplete support).
 
 **Installation**:
 ```sh
-curl -fsSL https://raw.githubusercontent.com/agentsmd/universal-agents/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/nevir/agentfill/main/install.sh | sh
 ```
 
 **Key Features**:
@@ -392,7 +392,7 @@ project/
 
 ## Feature Comparison Matrix
 
-| Feature | Universal Agents | Ruler | OpenSkills | Symlinks | CCS |
+| Feature | agentfill | Ruler | OpenSkills | Symlinks | CCS |
 |---------|-----------------|-------|------------|----------|-----|
 | **No file duplication** | ✅ | ❌ | ❌ | ✅ | ✅ |
 | **Nested hierarchy** | ✅ | ✅ | Partial | ❌ | ✅ |
@@ -409,7 +409,7 @@ project/
 
 ### Philosophy Differences
 
-**Universal Agents**:
+**agentfill**:
 - *Principle*: Implement the standard through native mechanisms
 - *Trade-off*: Limited agent support for deep integration
 - *Best for*: Teams wanting clean AGENTS.md-only repos
@@ -437,7 +437,7 @@ project/
 ### Technical Implementation
 
 **Extension Mechanisms**:
-- **Universal Agents**: Hooks (Claude), native config (Gemini)
+- **agentfill**: Hooks (Claude), native config (Gemini)
 - **Ruler**: File generation from templates
 - **OpenSkills**: Package installation to known paths
 - **Symlinks**: Filesystem links
@@ -445,13 +445,13 @@ project/
 - **Context Exclusion**: Tools read .aiignore/.aiexclude if present
 
 **Runtime Behavior**:
-- **Universal Agents**: Hook runs at session start, dynamically loads context
+- **agentfill**: Hook runs at session start, dynamically loads context
 - **Ruler**: Pre-generate files, agents read them normally
 - **OpenSkills**: Files exist in place, agents read them normally
 - **Symlinks**: Files are links, agents read through them
 
 **Update Workflow**:
-- **Universal Agents**: Edit AGENTS.md, reload session
+- **agentfill**: Edit AGENTS.md, reload session
 - **Ruler**: Edit .ruler/, run `ruler apply`, commit
 - **OpenSkills**: Edit SKILL.md, run `openskills sync`, commit
 - **Symlinks**: Edit AGENTS.md, commit (links follow)
@@ -466,7 +466,7 @@ From the README and research, here's the current state:
 | **Nested** | ❌ Native | ⚠️ [Broken](https://forum.cursor.com/t/nested-agents-md-files-not-being-loaded/138411) | ✅ Native |
 | **Selective** | ❌ Native | ❌ Native | ✅ Native |
 
-### What Universal Agents Fixes
+### What agentfill Fixes
 
 **For Claude Code**:
 - Adds all three features (basic, nested, selective)
@@ -482,7 +482,7 @@ From the README and research, here's the current state:
 
 ## Recommendations
 
-### Use Universal Agents When:
+### Use agentfill When:
 - You want AGENTS.md-only repositories (no CLAUDE.md, etc.)
 - You need selective loading (important for monorepos)
 - You primarily use Claude Code and/or Gemini CLI
@@ -512,8 +512,8 @@ From the README and research, here's the current state:
 
 ### Hybrid Approaches
 
-**Universal Agents + OpenSkills**:
-- Universal Agents for configuration
+**agentfill + OpenSkills**:
+- agentfill for configuration
 - OpenSkills for shareable capabilities
 - Clean separation of concerns
 
@@ -565,7 +565,7 @@ Beyond the main configuration management tools, several other projects and stand
 
 **Significance**: These protocols address agent interoperability at a higher level than configuration files. They enable multi-agent systems where different AI agents coordinate and delegate tasks.
 
-**Relevance to universal-agents**: As agents become more interoperable, standardized configuration (like AGENTS.md) becomes even more critical to ensure consistent behavior across coordinated systems.
+**Relevance to agentfill**: As agents become more interoperable, standardized configuration (like AGENTS.md) becomes even more critical to ensure consistent behavior across coordinated systems.
 
 **Sources**: [AI Agent Protocols](https://www.ssonetwork.com/intelligent-automation/columns/ai-agent-protocols-10-modern-standards-shaping-the-agentic-era), [Microsoft Agent Factory](https://azure.microsoft.com/en-us/blog/agent-factory-connecting-agents-apps-and-data-with-new-open-standards-like-mcp-and-a2a/)
 
@@ -725,7 +725,7 @@ The AGENTS.md initiative represents a significant push toward standardization, w
 
 ## Conclusion
 
-Universal Agents occupies a unique position in the ecosystem:
+agentfill occupies a unique position in the ecosystem:
 
 **Unique Value Proposition**:
 - Only solution implementing full AGENTS.md spec (nested + selective) without file duplication
@@ -752,9 +752,9 @@ Universal Agents occupies a unique position in the ecosystem:
 - Not focused on collaborative development
 - Missing the capabilities abstraction
 
-**The Landscape**: These projects are complementary rather than directly competitive. Universal Agents provides the cleanest AGENTS.md implementation for supported agents. Ruler solves the multi-agent distribution problem. OpenSkills addresses skill/capability sharing. Symlinks offer a no-tool fallback.
+**The Landscape**: These projects are complementary rather than directly competitive. agentfill provides the cleanest AGENTS.md implementation for supported agents. Ruler solves the multi-agent distribution problem. OpenSkills addresses skill/capability sharing. Symlinks offer a no-tool fallback.
 
-Teams may use multiple approaches: Universal Agents for Claude/Gemini AGENTS.md support, OpenSkills for shared capabilities, or Ruler for comprehensive multi-agent workflows.
+Teams may use multiple approaches: agentfill for Claude/Gemini AGENTS.md support, OpenSkills for shared capabilities, or Ruler for comprehensive multi-agent workflows.
 
 ## Sources
 

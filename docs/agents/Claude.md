@@ -271,14 +271,14 @@ CLAUDE.md supports importing external files:
 
 ## AGENTS.md Integration
 
-The universal-agents install script configures Claude Code to load AGENTS.md files via a SessionStart hook that:
+The agentfill install script configures Claude Code to load AGENTS.md files via a SessionStart hook that:
 1. Finds all AGENTS.md files in the project
 2. Injects instructions for loading nested AGENTS.md files
 3. Pre-loads root `./AGENTS.md` if it exists
 
 ### Skills Integration
 
-Universal-agents creates a symlink from `.claude/skills/` to `.agents/skills/`, enabling:
+agentfill creates a symlink from `.claude/skills/` to `.agents/skills/`, enabling:
 - Shared skills directory across all configured agents
 - Native Claude Code skill discovery
 - Hot reloading of skill changes (v2.1.0+)

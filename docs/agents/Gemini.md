@@ -296,11 +296,11 @@ Supports `@path/to/file.md` for modular context.
 
 ## AGENTS.md Integration
 
-The universal-agents install script configures Gemini CLI to load AGENTS.md files via the `context.fileName` setting, which tells Gemini to automatically include these files in the conversation context.
+The agentfill install script configures Gemini CLI to load AGENTS.md files via the `context.fileName` setting, which tells Gemini to automatically include these files in the conversation context.
 
 ### Skills Integration
 
-Universal-agents creates a symlink from `.gemini/skills/` to `.agents/skills/`, enabling:
+agentfill creates a symlink from `.gemini/skills/` to `.agents/skills/`, enabling:
 - Shared skills directory across all configured agents
 - Native Gemini CLI skill discovery (requires `experimental.skills: true`)
 

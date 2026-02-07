@@ -1,6 +1,6 @@
 # Test Suite Overview
 
-This directory contains all tests for the universal-agents project. Tests are organized into two main categories: **unit tests** and **agent integration tests**.
+This directory contains all tests for the agentfill project. Tests are organized into two main categories: **unit tests** and **agent integration tests**.
 
 ## Test Structure
 

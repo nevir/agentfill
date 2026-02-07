@@ -156,7 +156,7 @@ Tests that rerunning the install script is safe and idempotent.
 
 ### install/merging.sh
 
-Tests merging of universal-agents configuration with existing project configs.
+Tests merging of agentfill configuration with existing project configs.
 
 **Test cases:**
 - `test_merge_claude_existing_permissions` - Merge with existing Claude permissions
@@ -164,7 +164,7 @@ Tests merging of universal-agents configuration with existing project configs.
 
 **What's verified:**
 - Existing config values are preserved
-- New universal-agents config is added
+- New agentfill config is added
 - Custom fields remain intact
 - JSON structure is valid after merge
 
