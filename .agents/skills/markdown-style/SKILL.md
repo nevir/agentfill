@@ -10,7 +10,8 @@ description: >-
 
 Apply these conventions when writing or editing markdown files (`.md`).
 
-For the complete reference with all examples, read `references/formatting-reference.md`.
+When formatting tables or directory tree diagrams, read `references/tables-and-diagrams.md`.
+When creating a new document from a standard template, read `references/document-templates.md`.
 
 ## Document Structure
 
@@ -19,7 +20,7 @@ For the complete reference with all examples, read `references/formatting-refere
 - **One blank line** between every block element (headings, paragraphs, lists, code blocks, tables).
 - **Single newline** at end of file.
 - **No multiple consecutive blank lines**.
-- **No trailing whitespace** on any line.
+- **No trailing whitespace** on any line — including blank lines, which must be truly empty.
 
 ## Headings
 
@@ -35,13 +36,62 @@ ATX-style only (`#`), never Setext (underlines). Blank line before and after eve
 
 Use H4 (`####`) sparingly — if you need it frequently, consider restructuring.
 
+**Common mistakes:**
+
+```markdown
+# Bad — skipped heading level
+
+### This subsection has no parent H2
+
+# Bad — multiple H1s
+
+# First Title
+
+# Second Title
+```
+
 ## Lists
 
 - Use `-` for unordered lists, never `*` or `+`
 - Use `1.` numbering for ordered lists (sequential: `1.`, `2.`, `3.`)
 - Blank line before the first list item (after a paragraph or heading)
 - No blank lines between list items in a simple list
-- Indent continuation lines and nested lists with 2 spaces
+- Indent nested lists with 2 spaces
+
+```markdown
+- Parent item
+  - Child item
+  - Another child
+    - Grandchild
+- Next parent
+```
+
+**Mixed content in list items** — indent continuations with spaces to align:
+
+```markdown
+1. **First step**: Do the initial setup.
+
+   Additional details about this step that require a second paragraph.
+
+2. **Second step**: Run the following command:
+
+   ```sh
+   ./install.sh
+   ```
+
+3. **Third step**: Verify the results.
+```
+
+**Lists after paragraphs** — always a blank line between a paragraph and a list:
+
+```markdown
+This project supports multiple agents:
+
+- Claude Code
+- Gemini CLI
+
+Each agent has its own configuration format.
+```
 
 **Definition-style lists** — bold the lead term:
 
@@ -66,6 +116,21 @@ Use H4 (`####`) sparingly — if you need it frequently, consider restructuring.
 **Important**: Key points to remember.
 ```
 
+**Scoped callout labels** — bold the audience or context:
+
+```markdown
+**For AI Agents**: When you need context about agent configuration, read the docs first.
+**Example workflow**:
+```
+
+**Emphasis in lists** — bold the key term at the start of each item:
+
+```markdown
+- **No file duplication**: No need for CLAUDE.md symlinks
+- **Project and global modes**: Install per-project or user-wide
+- **Portable shell scripts**: POSIX sh, works everywhere
+```
+
 ## Links
 
 - **Inline style** always: `[text](url)` — never reference-style `[text][ref]`
@@ -73,20 +138,48 @@ Use H4 (`####`) sparingly — if you need it frequently, consider restructuring.
 - **Relative paths** for internal links: `[docs/AGENTS.md](docs/AGENTS.md)`
 - **Bold links** for index/navigation entries: `**[Title](path)**`
 
+**Internal documentation links:**
+
+```markdown
+See [docs/AGENTS.md](docs/AGENTS.md) for documentation guidelines.
+Read [Agent Skills Best Practices](docs/Agent%20Skills.md) for skill writing guidance.
+```
+
+**External links:**
+
+```markdown
+See the [Agent Skills Specification](https://agentskills.io/specification) for the formal spec.
+```
+
+**Links in prose** — embed naturally in sentences:
+
 ```markdown
 # Good
-See [Agent Skills Best Practices](docs/Agent%20Skills.md) for details.
+The [AGENTS.md standard](https://agents.md) provides a vendor-neutral format.
 
 # Bad
-See [this page](docs/Agent%20Skills.md) for details.
-Click [here](docs/Agent%20Skills.md).
+For the AGENTS.md standard, see: https://agents.md
 ```
 
 ## Code
 
 **Inline**: backticks for anything that is code — file names, commands, paths, variables, config values.
 
-**Blocks**: fenced with triple backticks. Always specify the language.
+**Blocks**: fenced with triple backticks. Always specify the language:
+
+| Language   | Identifier |
+|------------|-----------|
+| Shell      | `sh`      |
+| JSON       | `json`    |
+| YAML       | `yaml`    |
+| Markdown   | `markdown` |
+| TOML       | `toml`    |
+| Python     | `python`  |
+| JavaScript | `js`      |
+| TypeScript | `ts`      |
+| HTML       | `html`    |
+| CSS        | `css`     |
+| Plain text | (none — omit language) |
 
 ````markdown
 ```sh
@@ -96,16 +189,19 @@ echo "shell example"
 ```json
 {"key": "value"}
 ```
-
-```yaml
-name: example
-```
-
-```markdown
-# Markdown example
-```
 ````
 
+**Nested code fences** — use four backticks for the outer fence when showing markdown that contains code blocks:
+
+`````markdown
+````markdown
+```sh
+echo "nested example"
+```
+````
+`````
+
+- Use `sh`, never `bash`, for shell code blocks
 - Include helpful comments in code blocks
 - Show realistic examples, not placeholder content
 - Use the **Good/Bad** pattern to illustrate conventions:
@@ -119,38 +215,6 @@ if [ "$var" = "value" ]; then
 if [[ "$var" == "value" ]]; then
 ```
 ````
-
-## Tables
-
-Use markdown tables with header separators. Align columns for readability in source:
-
-```markdown
-| Feature | Status | Notes            |
-|---------|--------|------------------|
-| Basic   | Done   | Works on all OSs |
-| Nested  | Done   | Precedence rules |
-```
-
-- Every table must have a header row and separator row
-- Keep cell content concise — move details to footnotes or prose if needed
-
-## Directory Trees
-
-Use fenced code blocks (no language tag) with box-drawing characters:
-
-```markdown
-    ```
-    project/
-    ├── AGENTS.md              # Applies project-wide
-    ├── docs/
-    │   └── Comparison.md
-    └── src/
-        └── api/
-            └── AGENTS.md      # Applies to API work
-    ```
-```
-
-Add inline `#` comments for context. Use `├──`, `└──`, `│` consistently.
 
 ## File Naming
 
@@ -178,22 +242,12 @@ End with a **Sources** section listing references:
 
 Group sources by category with H3 headings when there are many.
 
-### Index Documents
+## Edge Cases
 
-Use bold links with dash-separated descriptions:
-
-```markdown
-- **[Document Title](path/to/doc.md)** - Brief description of contents
-```
-
-### Checklists
-
-Use task list syntax for validation steps:
-
-```markdown
-- [ ] Item one is complete
-- [ ] Item two is complete
-```
+- **Escaping**: backticks inside inline code use double backticks; literal asterisks use `\*`; pipe in tables use `\|`
+- **Long lines**: No hard wrapping — let lines be as long as needed. Break at sentence boundaries for very long prose.
+- **HTML in markdown**: Avoid HTML tags. Use native markdown syntax (`**bold**` not `<b>bold</b>`).
+- **Images**: `![Alt text](path/to/image.png)` — always include meaningful alt text.
 
 ## Content Principles
 

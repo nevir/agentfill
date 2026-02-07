@@ -60,6 +60,8 @@ Skills load in three tiers:
 
 Agents have a description budget (~15,000 chars across all skills). If you have many skills, keep descriptions concise. The `SLASH_COMMAND_TOOL_CHAR_BUDGET` environment variable can increase this limit in Claude Code.
 
+**Content placement**: Content the agent needs in every or most activations belongs in SKILL.md (the Instructions tier). Use reference files only for content needed in specific scenarios — each with a clear load trigger stated in SKILL.md. A reference that's always loaded defeats the purpose of tiered loading.
+
 ## Description Best Practices
 
 **Structure:** `<What it does>. <When to use it>.`

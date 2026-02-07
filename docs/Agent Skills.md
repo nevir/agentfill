@@ -179,10 +179,24 @@ Skills load in three tiers to keep context lean:
 | Instructions | When skill activates | <5,000 tokens (SKILL.md body) |
 | Resources | On demand | As needed (references/, scripts/) |
 
-Keep SKILL.md focused on the core workflow. Move detailed reference material to `references/` and tell the agent when to load it:
+**What belongs in SKILL.md vs references:**
+
+Content the agent needs in every or most activations belongs in SKILL.md. Reference files should contain content needed only in specific scenarios.
+
+- **In SKILL.md**: Core rules, common patterns, frequently needed examples
+- **In references/**: Full templates for specific scenarios, detailed rules for uncommon cases
+
+**Reference file guidelines:**
+
+- Each file should have a clear load trigger stated in SKILL.md
+- Name files by scenario: `references/new-script-template.md` not `references/full-guide.md`
+- Multiple focused files (50-150 lines each) beat one monolithic reference
+- If a reference is always loaded when the skill activates, merge it into SKILL.md
+
+Tell the agent when to load each reference:
 
 ```markdown
-For the complete API reference, read `references/api-reference.md`.
+For complete script templates with usage/help patterns, read `references/new-script-template.md`.
 ```
 
 ## Portability

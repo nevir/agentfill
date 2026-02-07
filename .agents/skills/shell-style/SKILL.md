@@ -10,8 +10,6 @@ description: >-
 
 Apply these conventions when writing or editing shell scripts (`.sh` files).
 
-For the complete guide with all examples, read `references/full-style-guide.md`.
-
 ## Fundamentals
 
 - **Shebang**: `#!/bin/sh` — target POSIX shell, not bash
@@ -21,6 +19,8 @@ For the complete guide with all examples, read `references/full-style-guide.md`.
 - **Variables**: lowercase with underscores: `my_variable`
 - **Functions**: lowercase with underscores: `my_function()`
 - **Constants**: uppercase: `VERSION="1.0.0"`
+- **Comments**: For non-obvious logic, not for what the code does
+- **Output**: Use `printf` instead of `echo` for portable output (especially with escape sequences)
 
 ## POSIX Portability
 
@@ -43,9 +43,28 @@ var="${var#prefix}"
 var=$(echo "$var" | sed 's/^prefix//')
 ```
 
+### Do
+
+- Use `[ ]` for tests (not `[[ ]]`)
+- Use `=` for string comparison (not `==`)
+- Use `command -v` to check for executables
+- Use shell parameter expansion for string manipulation
+- Use `printf` instead of `echo` for portable output
+
+### Avoid
+
+- Bash-specific syntax: `[[ ]]`, `==`, `(( ))`, `<<<`, `${var,,}`, `${var^^}`
+- `which` (not POSIX)
+- `echo -e` / `echo -n` (behavior varies across systems)
+- Arrays (not available in POSIX sh)
+- `source` (use `.` instead)
+- `function` keyword (use `name() { ... }` instead)
+
 ## Heredocs Over Quoted Strings
 
-Use heredocs for multi-line strings. Sigil pattern: `end_<name>` describing the content.
+Use heredocs for multi-line strings. Use `<<-` (with dash) to allow tab indentation.
+
+**Sigil naming**: `end_<name>` where `<name>` describes the content. Common sigils: `end_panic`, `end_template`, `end_help`, `end_usage`. Never use generic sigils like `EOF`, `EOL`, `END`.
 
 ```sh
 # Good
@@ -109,9 +128,11 @@ main() { ... }
 main "$@"
 ```
 
+For a complete ready-to-use script skeleton, read `references/new-script-template.md`.
+
 ## Case Statement Formatting
 
-**One-line** for simple branches — align `)` and `;;`:
+**One-line** for simple branches — use when each branch is a single simple command. Align `)` and `;;` for scannability. Pad shorter labels with spaces:
 
 ```sh
 case "$mode" in
@@ -121,7 +142,7 @@ case "$mode" in
 esac
 ```
 
-**Multi-line** for complex branches:
+**Multi-line** for complex branches — use when any branch has multiple commands. Branch body indented one level. `;;` on its own line, aligned with body. Empty branches still get `;;`:
 
 ```sh
 case "$type" in
@@ -138,33 +159,79 @@ esac
 
 Standard semantic color mapping — apply consistently across help text, errors, and status output:
 
-| Semantic name | Color | Use for |
-|--------------|-------|---------|
-| `error` | red | Error messages |
-| `success` | green | Success messages |
-| `warning` | yellow | Warnings |
-| `heading` | bold | Section headings |
-| `agent` | cyan | Agent names |
-| `flag` | purple | Flags/options |
-| `path` | yellow | File paths |
-| `command` | purple | Command names |
+| Semantic name | Color  | Use for          |
+|---------------|--------|------------------|
+| `error`       | red    | Error messages   |
+| `success`     | green  | Success messages |
+| `warning`     | yellow | Warnings         |
+| `heading`     | bold   | Section headings |
+| `agent`       | cyan   | Agent names      |
+| `flag`        | purple | Flags/options    |
+| `path`        | yellow | File paths       |
+| `command`     | purple | Command names    |
 
 Use the `c()` helper function: `$(c error "Error:")`, `$(c agent "claude")`.
 
-For full color definitions and helper functions, see `references/full-style-guide.md`.
+For full color definitions, `c()`, and `c_list()` implementations, read `references/color-system.md`.
+
+## Common Utilities
+
+### String trimming
+
+```sh
+trim() {
+	local var="$1"
+	var="${var#"${var%%[![:space:]]*}"}"
+	var="${var%"${var##*[![:space:]]}"}"
+	echo "$var"
+}
+```
 
 ## Error Handling
 
-Use `panic()` for fatal errors:
+Use `panic()` for fatal errors.
+
+### panic() implementation
 
 ```sh
-# Simple
+panic() {
+	local exit_code="$1"
+	shift
+	local show_usage=0
+	local message
+
+	if [ "$1" = "show_usage" ]; then
+		show_usage=1
+		shift
+	fi
+
+	if [ $# -gt 0 ]; then
+		message="$*"
+	else
+		message=$(cat)
+	fi
+
+	printf "\n$(c error Error:) $(trim "$message")\n" >&2
+
+	if [ "$show_usage" -eq 1 ]; then
+		printf "\n$(usage)\n" >&2
+	fi
+
+	printf "\n" >&2
+	exit "$exit_code"
+}
+```
+
+### Usage patterns
+
+```sh
+# Simple error message
 panic 2 "File not found: $file"
 
-# With usage display
+# Error with usage display
 panic 2 show_usage "Invalid argument: $arg"
 
-# With heredoc
+# Error with heredoc
 panic 2 <<-end_panic
 	Cannot proceed because:
 	- Reason 1
@@ -180,6 +247,8 @@ All user-facing scripts must provide:
 - `usage()` — brief syntax summary
 - `show_help()` — detailed help with examples
 - Color-coded output using the semantic colors above
+
+For `usage()` and `show_help()` template implementations, read `references/new-script-template.md`.
 
 ## Argument Parsing Pattern
 
