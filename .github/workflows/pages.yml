@@ -37,6 +37,9 @@ jobs:
         run: npm run build
         working-directory: site
 
+      - name: Compile install script
+        run: ./scripts/compile.sh
+
       - name: Copy install script into build output
         run: cp site/install site/dist/install
 

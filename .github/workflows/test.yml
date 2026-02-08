@@ -31,6 +31,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Verify site/install is compiled
+        run: |
+          ./scripts/compile.sh
+          if ! git diff --exit-code site/install; then
+            echo "Error: site/install is out of date. Run ./scripts/compile.sh"
+            exit 1
+          fi
+        shell: sh
+
       - name: Run install.sh all
         run: ./install.sh -y all
         shell: sh

@@ -46,21 +46,24 @@ This applies when:
 
 **CRITICAL**: Before committing any changes to this repository, you MUST:
 
-1. **Run unit tests**: Execute `./tests/test-unit.sh` and ensure all tests pass
-2. **Update polyfills**: If you modified `install.sh`, run `./install.sh` in the repository to update `.agents/polyfills/` with the latest templates
-3. **Verify changes**: Review that polyfill files match the templates in `install.sh`
+1. **Compile**: If you modified any `src/` files, run `./scripts/compile.sh` to regenerate `site/install`
+2. **Update polyfills**: If you modified install source files, run `./install.sh` in the repository to update `.agents/polyfills/` with the latest templates
+3. **Run unit tests**: Execute `./tests/test-unit.sh` and ensure all tests pass
+4. **Verify changes**: Review that polyfill files match the templates and `site/install` is up to date
 
 These steps ensure:
 - Code changes don't break existing functionality
+- `site/install` stays in sync with `src/` modules
 - Polyfill files stay in sync with install script templates
 - CI checks will pass when the PR is created
 
 **Example workflow**:
 ```sh
-# After modifying install.sh
-./install.sh                    # Update polyfills from templates
+# After modifying src/ files
+./scripts/compile.sh           # Regenerate site/install from src/
+./install.sh                   # Update polyfills from templates
 ./tests/test-unit.sh           # Run all unit tests
-git add -A                     # Stage both install.sh and updated polyfills
+git add -A                     # Stage everything
 git commit -m "Your message"   # Commit together
 ```
 

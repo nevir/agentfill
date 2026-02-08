@@ -1,14 +1,6 @@
 #!/bin/sh
 set -e
 
-VERSION="1.0.0"
-
-SUPPORTED_AGENTS="claude cursor gemini"
-
-# Installation modes
-INSTALL_MODE="project"  # project, local, or global
-INSTALL_LEVEL="full"    # none, config, or full
-
 # ============================================
 # Colors
 # ============================================
@@ -92,25 +84,40 @@ func_name() {
 	echo "$1" | tr '-' '_'
 }
 
-# User input FD for interactive prompts.
-# Allows reading user input even when stdin is a pipe (curl | sh).
-USER_INPUT_FD=""
+panic() {
+	local exit_code="$1"
+	shift
+	local show_usage=0
+	local message
 
-open_user_input() {
-	if [ -t 0 ]; then
-		exec 3<&0
-		USER_INPUT_FD=3
-	elif (exec </dev/tty) 2>/dev/null; then
-		exec 3</dev/tty
-		USER_INPUT_FD=3
-	else
-		USER_INPUT_FD=""
+	if [ "$1" = "show_usage" ]; then
+		show_usage=1
+		shift
 	fi
+
+	if [ $# -gt 0 ]; then
+		message="$*"
+	else
+		message=$(cat)
+	fi
+
+	printf "\n$(c error Error:) $(trim "$message")\n" >&2
+
+	if [ "$show_usage" -eq 1 ]; then
+		printf "\n$(usage)\n" >&2
+	fi
+
+	printf "\n" >&2
+	exit "$exit_code"
 }
 
-is_interactive() {
-	[ -n "$USER_INPUT_FD" ]
-}
+VERSION="1.0.0"
+
+SUPPORTED_AGENTS="claude cursor gemini"
+
+# Installation modes
+INSTALL_MODE="project"  # project, local, or global
+INSTALL_LEVEL="full"    # none, config, or full
 
 # Get Claude settings file path based on install mode
 claude_settings_path() {
@@ -176,33 +183,6 @@ polyfill_reference_path() {
 	esac
 }
 
-panic() {
-	local exit_code="$1"
-	shift
-	local show_usage=0
-	local message
-
-	if [ "$1" = "show_usage" ]; then
-		show_usage=1
-		shift
-	fi
-
-	if [ $# -gt 0 ]; then
-		message="$*"
-	else
-		message=$(cat)
-	fi
-
-	printf "\n$(c error Error:) $(trim "$message")\n" >&2
-
-	if [ "$show_usage" -eq 1 ]; then
-		printf "\n$(usage)\n" >&2
-	fi
-
-	printf "\n" >&2
-	exit "$exit_code"
-}
-
 # ============================================
 # Tool detection
 # ============================================
@@ -215,6 +195,81 @@ check_perl() {
 	if ! perl -MJSON::PP -e 1 2>/dev/null; then
 		panic 2 "Perl JSON::PP module is required but not found."
 	fi
+}
+
+# ============================================
+# JSON operations (Perl)
+# ============================================
+
+json_merge_deep() {
+	local file="$1"
+	local merge_json="$2"
+	local temp_file="/tmp/json_merge_tmp_$$_$(date +%s)"
+
+	cat "$file" | perl -MJSON::PP -0777 -e '
+my $json = JSON::PP->new->utf8->relaxed->pretty->canonical;
+my $base = $json->decode(do { local $/; <STDIN> });
+my $merge = $json->decode(q{'"$merge_json"'});
+my $base_json = $json->encode($base);
+
+sub merge_recursive {
+	my ($base, $merge) = @_;
+
+	if (ref $merge eq "HASH") {
+		$base = {} unless ref $base eq "HASH";
+		for my $key (keys %$merge) {
+			$base->{$key} = merge_recursive($base->{$key}, $merge->{$key});
+		}
+		return $base;
+	} elsif (ref $merge eq "ARRAY") {
+		$base = [] unless ref $base eq "ARRAY";
+		# For arrays, merge unique elements
+		my %seen;
+		my @result;
+		for my $item (@$base, @$merge) {
+			my $key = ref $item ? $json->encode($item) : $item;
+			push @result, $item unless $seen{$key}++;
+		}
+		return \@result;
+	} else {
+		return $merge;
+	}
+}
+
+my $result = merge_recursive($base, $merge);
+my $result_json = $json->encode($result);
+
+print $result_json;
+exit($base_json eq $result_json ? 0 : 1);
+' > "$temp_file"
+
+	local exit_code=$?
+	mv "$temp_file" "$file"
+	return $exit_code
+}
+
+# ============================================
+# Agent detection and selection
+# ============================================
+
+# User input FD for interactive prompts.
+# Allows reading user input even when stdin is a pipe (curl | sh).
+USER_INPUT_FD=""
+
+open_user_input() {
+	if [ -t 0 ]; then
+		exec 3<&0
+		USER_INPUT_FD=3
+	elif (exec </dev/tty) 2>/dev/null; then
+		exec 3</dev/tty
+		USER_INPUT_FD=3
+	else
+		USER_INPUT_FD=""
+	fi
+}
+
+is_interactive() {
+	[ -n "$USER_INPUT_FD" ]
 }
 
 # Get the CLI binary name for detecting an agent
@@ -487,198 +542,8 @@ _tui_available() {
 }
 
 # ============================================
-# JSON operations (Perl)
+# Claude templates
 # ============================================
-
-json_merge_deep() {
-	local file="$1"
-	local merge_json="$2"
-	local temp_file="/tmp/json_merge_tmp_$$_$(date +%s)"
-
-	cat "$file" | perl -MJSON::PP -0777 -e '
-my $json = JSON::PP->new->utf8->relaxed->pretty->canonical;
-my $base = $json->decode(do { local $/; <STDIN> });
-my $merge = $json->decode(q{'"$merge_json"'});
-my $base_json = $json->encode($base);
-
-sub merge_recursive {
-	my ($base, $merge) = @_;
-
-	if (ref $merge eq "HASH") {
-		$base = {} unless ref $base eq "HASH";
-		for my $key (keys %$merge) {
-			$base->{$key} = merge_recursive($base->{$key}, $merge->{$key});
-		}
-		return $base;
-	} elsif (ref $merge eq "ARRAY") {
-		$base = [] unless ref $base eq "ARRAY";
-		# For arrays, merge unique elements
-		my %seen;
-		my @result;
-		for my $item (@$base, @$merge) {
-			my $key = ref $item ? $json->encode($item) : $item;
-			push @result, $item unless $seen{$key}++;
-		}
-		return \@result;
-	} else {
-		return $merge;
-	}
-}
-
-my $result = merge_recursive($base, $merge);
-my $result_json = $json->encode($result);
-
-print $result_json;
-exit($base_json eq $result_json ? 0 : 1);
-' > "$temp_file"
-
-	local exit_code=$?
-	mv "$temp_file" "$file"
-	return $exit_code
-}
-
-# ============================================
-# YAML operations (simple line-based)
-# ============================================
-
-yaml_has_section() {
-	local file="$1"
-	local section="$2"
-
-	grep -q "^${section}:" "$file" 2>/dev/null
-}
-
-yaml_has_item() {
-	local file="$1"
-	local section="$2"
-	local item="$3"
-
-	if ! yaml_has_section "$file" "$section"; then
-		return 1
-	fi
-
-	grep -A 999 "^${section}:" "$file" | grep -q "^  - ${item}\$"
-}
-
-yaml_add_section_with_items() {
-	local file="$1"
-	local section="$2"
-	shift 2
-	local items="$*"
-
-	{
-		echo ""
-		echo "${section}:"
-		for item in $items; do
-			echo "  - $item"
-		done
-	} >> "$file"
-}
-
-yaml_add_item() {
-	local file="$1"
-	local section="$2"
-	local item="$3"
-	local temp_file="${file}.tmp.$$"
-
-	perl -i -pe <<-end_perl "$file"
-		BEGIN { \$section = q{$section}; \$item = q{$item}; \$added = 0; }
-		if (/^\$section:/) { \$in_section = 1; }
-		if (\$in_section && /^[a-z]/) {
-			print "  - \$item\\n" unless \$added;
-			\$added = 1;
-			\$in_section = 0;
-		}
-		END { print "  - \$item\\n" if \$in_section && !\$added; }
-	end_perl
-}
-
-# ============================================
-# Skills symlinks (project install only)
-# ============================================
-
-# Create skills symlink for an agent
-# Only called in project mode; global mode uses hooks instead (Task 04)
-create_skills_symlink() {
-	local agent="$1"
-	local target
-	target=$(agent_skills_dir "$agent")
-
-	# Only create symlinks if .agents/skills/ exists
-	[ -d ".agents/skills" ] || return 0
-
-	# Skip if agent has no skills directory mapping
-	[ -n "$target" ] || return 0
-
-	# Safety: don't overwrite existing non-symlink (user's skills)
-	if [ -e "$target" ] && [ ! -L "$target" ]; then
-		printf "$(c warning Warning:) $(c path "$target") exists and is not a symlink. Skipping.\n" >&2
-		printf "  Move your skills to $(c path ".agents/skills/") to use universal skills.\n" >&2
-		return 0
-	fi
-
-	# Skip if symlink already points to correct target
-	if [ -L "$target" ]; then
-		local current
-		current=$(readlink "$target")
-		if [ "$current" = "../.agents/skills" ]; then
-			return 0
-		fi
-		# Wrong target - remove and recreate
-		rm "$target"
-	fi
-
-	# Create parent directory and symlink
-	mkdir -p "$(dirname "$target")"
-	ln -s "../.agents/skills" "$target"
-	printf "$(c success Created:) $(c path "$target") -> $(c path "../.agents/skills")\n"
-}
-
-# ============================================
-# File templates
-# ============================================
-
-template_gemini_settings() {
-	# Config level: just context settings, no hooks
-	if [ "$INSTALL_LEVEL" = "config" ]; then
-		cat <<-'end_template'
-			{
-			  "context": {
-			    "fileName": ["AGENTS.md", "GEMINI.md"]
-			  }
-			}
-		end_template
-		return
-	fi
-
-	# Full level: Global mode includes the skills hook
-	if [ "$INSTALL_MODE" = "global" ]; then
-		local skills_hook_path="$(polyfill_dir)/skills/gemini.sh"
-		cat <<-end_template
-			{
-			  "context": {
-			    "fileName": ["AGENTS.md", "GEMINI.md"]
-			  },
-			  "hooks": {
-			    "SessionStart": [
-			      {
-			        "type": "command",
-			        "command": "$skills_hook_path"
-			      }
-			    ]
-			  }
-			}
-		end_template
-	else
-		cat <<-'end_template'
-			{
-			  "context": {
-			    "fileName": ["AGENTS.md", "GEMINI.md"]
-			  }
-			}
-		end_template
-	fi
-}
 
 template_claude_settings() {
 	# Config level: empty settings (no hooks)
@@ -884,48 +749,9 @@ template_claude_skills_hook() {
 	end_template
 }
 
-template_gemini_skills_hook() {
-	cat <<-'end_template'
-		#!/bin/sh
-
-		# Skills symlink hook for Gemini (global install)
-		# Creates symlinks to .agents/skills/ on-demand per project
-
-		PROJECT_DIR="${GEMINI_PROJECT_DIR:-.}"
-		TARGET="$PROJECT_DIR/.gemini/skills"
-
-		# Check for skills source: project skills first, then global skills
-		if [ -d "$PROJECT_DIR/.agents/skills" ]; then
-			SOURCE="../.agents/skills"
-		elif [ -d "$HOME/.agents/skills" ]; then
-			SOURCE="$HOME/.agents/skills"
-		else
-			exit 0
-		fi
-
-		# Safety: existing non-symlink directory - warn and skip
-		if [ -e "$TARGET" ] && [ ! -L "$TARGET" ]; then
-			echo "Warning: $TARGET exists and is not a symlink. Move skills to .agents/skills/ to use universal skills." >&2
-			exit 0
-		fi
-
-		# Already a symlink - nothing to do
-		if [ -L "$TARGET" ]; then
-			exit 0
-		fi
-
-		# Create symlink
-		mkdir -p "$PROJECT_DIR/.gemini"
-		ln -s "$SOURCE" "$TARGET"
-
-		# Instruct user to restart (skills discovered before hook runs)
-		cat <<-end_message
-		<skills_setup>
-		Skills symlink created. Please restart Gemini to discover skills in this project.
-		</skills_setup>
-		end_message
-	end_template
-}
+# ============================================
+# Cursor templates
+# ============================================
 
 template_cursor_hooks() {
 	# Config level: no hooks
@@ -1129,6 +955,95 @@ template_cursor_skills_hook() {
 }
 
 # ============================================
+# Gemini templates
+# ============================================
+
+template_gemini_settings() {
+	# Config level: just context settings, no hooks
+	if [ "$INSTALL_LEVEL" = "config" ]; then
+		cat <<-'end_template'
+			{
+			  "context": {
+			    "fileName": ["AGENTS.md", "GEMINI.md"]
+			  }
+			}
+		end_template
+		return
+	fi
+
+	# Full level: Global mode includes the skills hook
+	if [ "$INSTALL_MODE" = "global" ]; then
+		local skills_hook_path="$(polyfill_dir)/skills/gemini.sh"
+		cat <<-end_template
+			{
+			  "context": {
+			    "fileName": ["AGENTS.md", "GEMINI.md"]
+			  },
+			  "hooks": {
+			    "SessionStart": [
+			      {
+			        "type": "command",
+			        "command": "$skills_hook_path"
+			      }
+			    ]
+			  }
+			}
+		end_template
+	else
+		cat <<-'end_template'
+			{
+			  "context": {
+			    "fileName": ["AGENTS.md", "GEMINI.md"]
+			  }
+			}
+		end_template
+	fi
+}
+
+template_gemini_skills_hook() {
+	cat <<-'end_template'
+		#!/bin/sh
+
+		# Skills symlink hook for Gemini (global install)
+		# Creates symlinks to .agents/skills/ on-demand per project
+
+		PROJECT_DIR="${GEMINI_PROJECT_DIR:-.}"
+		TARGET="$PROJECT_DIR/.gemini/skills"
+
+		# Check for skills source: project skills first, then global skills
+		if [ -d "$PROJECT_DIR/.agents/skills" ]; then
+			SOURCE="../.agents/skills"
+		elif [ -d "$HOME/.agents/skills" ]; then
+			SOURCE="$HOME/.agents/skills"
+		else
+			exit 0
+		fi
+
+		# Safety: existing non-symlink directory - warn and skip
+		if [ -e "$TARGET" ] && [ ! -L "$TARGET" ]; then
+			echo "Warning: $TARGET exists and is not a symlink. Move skills to .agents/skills/ to use universal skills." >&2
+			exit 0
+		fi
+
+		# Already a symlink - nothing to do
+		if [ -L "$TARGET" ]; then
+			exit 0
+		fi
+
+		# Create symlink
+		mkdir -p "$PROJECT_DIR/.gemini"
+		ln -s "$SOURCE" "$TARGET"
+
+		# Instruct user to restart (skills discovered before hook runs)
+		cat <<-end_message
+		<skills_setup>
+		Skills symlink created. Please restart Gemini to discover skills in this project.
+		</skills_setup>
+		end_message
+	end_template
+}
+
+# ============================================
 # Change tracking
 # ============================================
 
@@ -1159,12 +1074,6 @@ cleanup_change_files() {
 		i=$((i + 1))
 	done
 }
-
-cleanup() {
-	cleanup_change_files
-	[ -n "$USER_INPUT_FD" ] && exec 3<&- 2>/dev/null || true
-}
-trap cleanup EXIT
 
 # ============================================
 # Ledger display
@@ -1217,17 +1126,6 @@ display_ledger() {
 	done
 
 	printf "\n"
-}
-
-ask_confirmation() {
-	local response
-	printf "Apply these changes? [y/N]: "
-	read -r response <&3
-
-	case "$response" in
-		[yY]|[yY][eE][sS]) return 0 ;;
-		*)                 return 1 ;;
-	esac
 }
 
 # ============================================
@@ -1414,6 +1312,64 @@ apply_changes() {
 		i=$((i + 1))
 	done
 }
+
+ask_confirmation() {
+	local response
+	printf "Apply these changes? [y/N]: "
+	read -r response <&3
+
+	case "$response" in
+		[yY]|[yY][eE][sS]) return 0 ;;
+		*)                 return 1 ;;
+	esac
+}
+
+# ============================================
+# Skills symlinks (project install only)
+# ============================================
+
+# Create skills symlink for an agent
+# Only called in project mode; global mode uses hooks instead (Task 04)
+create_skills_symlink() {
+	local agent="$1"
+	local target
+	target=$(agent_skills_dir "$agent")
+
+	# Only create symlinks if .agents/skills/ exists
+	[ -d ".agents/skills" ] || return 0
+
+	# Skip if agent has no skills directory mapping
+	[ -n "$target" ] || return 0
+
+	# Safety: don't overwrite existing non-symlink (user's skills)
+	if [ -e "$target" ] && [ ! -L "$target" ]; then
+		printf "$(c warning Warning:) $(c path "$target") exists and is not a symlink. Skipping.\n" >&2
+		printf "  Move your skills to $(c path ".agents/skills/") to use universal skills.\n" >&2
+		return 0
+	fi
+
+	# Skip if symlink already points to correct target
+	if [ -L "$target" ]; then
+		local current
+		current=$(readlink "$target")
+		if [ "$current" = "../.agents/skills" ]; then
+			return 0
+		fi
+		# Wrong target - remove and recreate
+		rm "$target"
+	fi
+
+	# Create parent directory and symlink
+	mkdir -p "$(dirname "$target")"
+	ln -s "../.agents/skills" "$target"
+	printf "$(c success Created:) $(c path "$target") -> $(c path "../.agents/skills")\n"
+}
+
+cleanup() {
+	cleanup_change_files
+	[ -n "$USER_INPUT_FD" ] && exec 3<&- 2>/dev/null || true
+}
+trap cleanup EXIT
 
 # ============================================
 # Usage and help
