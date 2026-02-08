@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, useScroll, useTransform } from 'motion/react';
 import { FileText, FolderTree, Target, Sparkles, Check, X, AlertCircle, Copy, ArrowDown } from 'lucide-react';
 
@@ -8,6 +8,10 @@ export default function App() {
   const headerY = useTransform(scrollYProgress, [0, 0.1], [0, -20]);
 
   const installCommand = 'curl -fsSL https://agentfill.dev/install | sh';
+
+  useEffect(() => {
+    document.title = 'agentfill';
+  }, []);
 
   const copyToClipboard = () => {
     const textArea = document.createElement('textarea');
@@ -32,15 +36,9 @@ export default function App() {
 
   const features = [
     {
-      icon: FileText,
-      title: 'AGENTS.md Support',
-      description: 'Agents automatically read AGENTS.md files instead of (or in addition to) their proprietary formats',
-      emoji: '📄'
-    },
-    {
       icon: FolderTree,
-      title: 'Nested Precedence',
-      description: 'AGENTS.md files in subdirectories apply and layer with proper precedence (closer = higher priority)',
+      title: 'Nested AGENTS.md Support',
+      description: 'Most agents only support a root AGENTS.md file. agentfill enables nested AGENTS.md files in subdirectories with proper precedence (closer = higher priority)',
       emoji: '🪺'
     },
     {
@@ -54,6 +52,12 @@ export default function App() {
       title: 'Shared Skills',
       description: 'Store skills once in .agents/skills/, use across all agents',
       emoji: '🔧'
+    },
+    {
+      icon: FileText,
+      title: 'No Rebuild Step',
+      description: 'Edit AGENTS.md files and they just work. No commands to run, no watchers to restart.',
+      emoji: '⚡'
     }
   ];
 
@@ -312,6 +316,39 @@ export default function App() {
             </h2>
           </motion.div>
 
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-16 items-stretch">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="h-full"
+            >
+              <div className="bg-white text-black p-6 font-mono text-sm border-4 border-white h-full">
+                <div className="mb-1">project/</div>
+                <div className="mb-1 text-yellow-600">├─ AGENTS.md <span className="text-black opacity-60"># Project-wide</span></div>
+                <div className="mb-1">└─ src/</div>
+                <div className="mb-1 ml-[3ch]">└─ api/</div>
+                <div className="text-yellow-600 ml-[6ch]">└─ AGENTS.md <span className="text-black opacity-60"># API-specific</span></div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2, duration: 0.6 }}
+              className="h-full"
+            >
+              <div className="bg-white text-black p-6 font-mono text-sm border-4 border-white h-full">
+                <div className="mb-1">.agents/</div>
+                <div className="mb-1">└─ skills/</div>
+                <div className="text-yellow-600 mb-1 ml-[3ch]">└─ my-skill/</div>
+                <div className="ml-[6ch]">└─ SKILL.md</div>
+              </div>
+            </motion.div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {features.map((feature, index) => (
               <motion.div
@@ -407,7 +444,7 @@ export default function App() {
                   <tr className="border-b-4 border-white bg-yellow-400 text-black">
                     <th className="px-6 py-4 text-left font-black uppercase">Agent</th>
                     <th className="px-6 py-4 text-center font-black uppercase">📄 Basic</th>
-                    <th className="px-6 py-4 text-center font-black uppercase"> Nested</th>
+                    <th className="px-6 py-4 text-center font-black uppercase">🪺 Nested</th>
                     <th className="px-6 py-4 text-center font-black uppercase">🎯 Selective</th>
                     <th className="px-6 py-4 text-center font-black uppercase">🔧 Skills</th>
                   </tr>
@@ -453,64 +490,6 @@ export default function App() {
               </p>
             </div>
           </motion.div>
-        </div>
-      </section>
-
-      {/* Usage Section */}
-      <section className="relative py-24 px-6 border-b-4 border-black">
-        <div className="max-w-6xl mx-auto">
-          <motion.h2
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-[clamp(2.5rem,8vw,5rem)] font-black uppercase leading-none mb-16"
-          >
-            What You
-            <br />
-            <span className="bg-black text-white px-4 inline-block -rotate-1">Get</span>
-          </motion.h2>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className="border-4 border-black p-8 bg-white"
-            >
-              <h3 className="text-3xl font-black uppercase mb-6">Directory Structure</h3>
-              <div className="bg-black text-white p-6 font-mono text-sm border-4 border-black">
-                <div className="mb-1">project/</div>
-                <div className="mb-1 text-yellow-400">├── AGENTS.md <span className="text-white opacity-60"># Project-wide</span></div>
-                <div className="mb-1">└── src/</div>
-                <div className="mb-1 ml-4">└── api/</div>
-                <div className="text-yellow-400 ml-8">└── AGENTS.md <span className="text-white opacity-60"># API-specific</span></div>
-              </div>
-              <p className="mt-6 text-lg leading-relaxed">
-                When working in <code className="bg-yellow-400 px-2 py-1 font-mono">src/api/</code>, both AGENTS.md files apply - with the API-specific one taking precedence.
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2, duration: 0.6 }}
-              className="border-4 border-black p-8 bg-white"
-            >
-              <h3 className="text-3xl font-black uppercase mb-6">Shared Skills</h3>
-              <div className="bg-black text-white p-6 font-mono text-sm border-4 border-black">
-                <div className="mb-1">.agents/</div>
-                <div className="mb-1 ml-4">└── skills/</div>
-                <div className="text-yellow-400 mb-1 ml-8">└── my-skill/</div>
-                <div className="ml-12">└── SKILL.md</div>
-              </div>
-              <p className="mt-6 text-lg leading-relaxed">
-                Skills are symlinked to each agent's native skills directory, enabling native discovery, hot reloading, and cross-agent compatibility.
-              </p>
-            </motion.div>
-          </div>
         </div>
       </section>
 
