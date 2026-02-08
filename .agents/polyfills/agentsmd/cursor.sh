@@ -27,8 +27,7 @@ fi
 
 # If no AGENTS.md files found, output minimal JSON and exit
 if [ -z "$agent_files" ]; then
-printf '{"continue":true}
-'
+printf '{"continue":true}\n'
 exit 0
 fi
 

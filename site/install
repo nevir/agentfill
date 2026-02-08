@@ -1147,7 +1147,7 @@ add_change() {
 
 	# Store content in temp file to avoid escaping issues
 	local content_file="/tmp/install_change_${CHANGE_COUNT}_$$"
-	echo "$content" > "$content_file"
+	printf '%s\n' "$content" > "$content_file"
 	eval "CHANGE_${CHANGE_COUNT}_CONTENT_FILE='$content_file'"
 }
 
@@ -1369,6 +1369,16 @@ plan_cursor() {
 # ============================================
 # Apply changes
 # ============================================
+
+has_pending_changes() {
+	local i=1
+	while [ $i -le $CHANGE_COUNT ]; do
+		eval "local type=\$CHANGE_${i}_TYPE"
+		case "$type" in create|modify) return 0 ;; esac
+		i=$((i + 1))
+	done
+	return 1
+}
 
 apply_changes() {
 	local i=1
@@ -1620,6 +1630,11 @@ main() {
 
 	if [ "$dry_run" = true ]; then
 		printf "$(c warning 'Dry-run mode - no changes applied')\n\n"
+		exit 0
+	fi
+
+	if ! has_pending_changes; then
+		printf "$(c success '✓ Already up to date!')\n\n"
 		exit 0
 	fi
 
