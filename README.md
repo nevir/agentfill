@@ -10,8 +10,6 @@ curl -fsSL https://agentfill.dev/install | sh
 
 Most AI coding agents have incomplete or broken `AGENTS.md` support natively. agentfill polyfills that support so you can rely on consistent behavior, no matter which agent you use.
 
-Install **globally** to get `AGENTS.md` support everywhere you use your agents, or **per-project** to check it into your repo so everyone on the team benefits.
-
 📄 **AGENTS.md support**: Agents automatically read `AGENTS.md` files instead of (or in addition to) their proprietary formats
 
 🪺 **Nested precedence**: `AGENTS.md` files in subdirectories apply and layer with proper precedence (closer = higher priority)
@@ -19,6 +17,10 @@ Install **globally** to get `AGENTS.md` support everywhere you use your agents, 
 🎯 **Selective loading**: Only loads relevant `AGENTS.md` files, not all of them (e.g. to minimize context bloat)
 
 🔧 **Shared skills**: Store skills once in `.agents/skills/`, use across all agents
+
+> [!NOTE]
+>
+> You can either install **globally** to get `AGENTS.md` support everywhere you use your agents, or **per-project** to check it into your repo so everyone on the team benefits.
 
 ## Philosophy
 
