@@ -20,6 +20,7 @@ color_blue='\033[0;34m'
 color_purple='\033[0;35m'
 color_cyan='\033[0;36m'
 color_bold='\033[1m'
+color_dim='\033[2m'
 color_reset='\033[0m'
 
 # Semantic colors
@@ -89,6 +90,26 @@ trim() {
 # Convert agent name to valid shell function name (e.g. some-agent -> some_agent)
 func_name() {
 	echo "$1" | tr '-' '_'
+}
+
+# User input FD for interactive prompts.
+# Allows reading user input even when stdin is a pipe (curl | sh).
+USER_INPUT_FD=""
+
+open_user_input() {
+	if [ -t 0 ]; then
+		exec 3<&0
+		USER_INPUT_FD=3
+	elif (exec </dev/tty) 2>/dev/null; then
+		exec 3</dev/tty
+		USER_INPUT_FD=3
+	else
+		USER_INPUT_FD=""
+	fi
+}
+
+is_interactive() {
+	[ -n "$USER_INPUT_FD" ]
 }
 
 # Get Claude settings file path based on install mode
@@ -213,41 +234,256 @@ detect_installed_agents() {
 	trim "$installed"
 }
 
-prompt_agent_selection() {
-	printf "\n$(c heading 'Select agents to configure:')\n\n" >&2
-	printf "  $(c agent claude)      - Claude Code\n" >&2
-	printf "  $(c agent cursor)      - Cursor\n" >&2
-	printf "  $(c agent gemini)      - Gemini CLI\n" >&2
-	printf "\n" >&2
-	printf "Enter agent names (space-separated), or $(c option all) for all: " >&2
-	read -r response
-
-	response=$(trim "$response")
-	case "$response" in
-		""|all|All|ALL) echo "$SUPPORTED_AGENTS" ;;
-		*)              echo "$response" ;;
+# Agent display labels
+agent_label() {
+	case "$1" in
+		claude) echo "Claude Code" ;;
+		cursor) echo "Cursor" ;;
+		gemini) echo "Gemini CLI" ;;
+		*)      echo "$1" ;;
 	esac
 }
 
-select_agents() {
+# ── Checkbox TUI ─────────────────────────────────────────────
+# Interactive checkbox selector with arrow keys + space/enter.
+# Falls back to a simple numbered prompt if raw mode fails.
+
+_saved_tty=""
+
+_tui_setup() {
+	_saved_tty=$(stty -g <&3 2>/dev/null) || true
+	stty raw -echo <&3 2>/dev/null
+}
+
+_tui_teardown() {
+	if [ -n "$_saved_tty" ]; then
+		stty "$_saved_tty" <&3 2>/dev/null || true
+		_saved_tty=""
+	fi
+}
+
+# Read a single byte from the user input FD
+_read_char() {
+	dd bs=1 count=1 2>/dev/null <&3
+}
+
+# Read a keypress, handling multi-byte escape sequences.
+# Sets _KEY to one of: UP DOWN SPACE ENTER QUIT OTHER
+_read_key() {
+	local ch
+	ch=$(_read_char)
+	case "$ch" in
+		"$(printf '\033')")
+			# Escape sequence — read two more bytes
+			local seq1 seq2
+			seq1=$(_read_char)
+			seq2=$(_read_char)
+			case "$seq1$seq2" in
+				"[A") _KEY=UP ;;
+				"[B") _KEY=DOWN ;;
+				*)    _KEY=OTHER ;;
+			esac
+			;;
+		" ")       _KEY=TOGGLE ;;
+		"$(printf '\r')" | "$(printf '\n')" | "") _KEY=TOGGLE ;;
+		y|Y)       _KEY=CONFIRM ;;
+		q|Q)       _KEY=QUIT ;;
+		"$(printf '\003')") _KEY=QUIT ;;  # Ctrl+C
+		*)         _KEY=OTHER ;;
+	esac
+}
+
+# Render the checkbox list. Writes to stderr.
+# Uses _cb_cur (cursor index), _cb_sel_N (selected state), _cb_det_N (detected)
+_cb_render() {
+	local i=0
+	for agent in $SUPPORTED_AGENTS; do
+		local sel det label pointer check
+		eval "sel=\$_cb_sel_$i"
+		eval "det=\$_cb_det_$i"
+		label=$(agent_label "$agent")
+
+		if [ "$i" = "$_cb_cur" ]; then
+			pointer="$(c heading '>')"
+		else
+			pointer=" "
+		fi
+
+		if [ "$sel" = 1 ]; then
+			check="$(c success '[✓]')"
+		else
+			check="[ ]"
+		fi
+
+		local suffix=""
+		[ "$det" = 1 ] && suffix=" $(c blue '(detected)')"
+
+		printf "\r  %b %b %-12s%b\r\n" "$pointer" "$check" "$label" "$suffix" >&2
+		i=$((i + 1))
+	done
+	printf "\r\n\r  ⇅ $(c dim navigate)  ⏎ $(c dim toggle)  y $(c dim confirm)\r\n" >&2
+}
+
+# Move cursor up N lines (for redrawing)
+_cb_cursor_up() {
+	local n=$1
+	printf "\033[%dA" "$n" >&2
+}
+
+# Clear current line
+_cb_clear_line() {
+	printf "\033[2K\r" >&2
+}
+
+# Redraw the checkbox UI (clear then re-render)
+_cb_redraw() {
+	# Total lines: agent_count + 1 (blank) + 1 (hint) = agent_count + 2
+	local total_lines=$(( _cb_count + 2 ))
+	_cb_cursor_up "$total_lines"
+	local i=0
+	while [ "$i" -lt "$total_lines" ]; do
+		_cb_clear_line
+		printf "\n" >&2
+		i=$((i + 1))
+	done
+	_cb_cursor_up "$total_lines"
+	_cb_render
+}
+
+# Main checkbox selection UI.
+# Pre-selects detected agents. Sets SELECTED_AGENTS to space-separated list.
+# Must be called directly (not in a subshell) so stty changes affect the terminal.
+select_agents_checkbox() {
 	local installed
 	installed=$(detect_installed_agents)
 
-	if [ -n "$installed" ]; then
-		printf "\n$(c heading 'Detected installed agents:') $(c_list agent $installed)\n\n" >&2
-		printf "Install for these agents? [Y/n/select]: " >&2
-		read -r confirm
+	# Count agents and initialize state
+	_cb_count=0
+	_cb_cur=0
+	for agent in $SUPPORTED_AGENTS; do
+		eval "_cb_sel_$_cb_count=0"
+		eval "_cb_det_$_cb_count=0"
+		if list_contains "$agent" "$installed"; then
+			eval "_cb_sel_$_cb_count=1"
+			eval "_cb_det_$_cb_count=1"
+		fi
+		_cb_count=$((_cb_count + 1))
+	done
 
-		confirm=$(trim "$confirm")
-		case "$confirm" in
-			""|[yY]|[yY][eE][sS]) echo "$installed" ;;
-			[nN]|[nN][oO])        exit 0 ;;
-			*)                    prompt_agent_selection ;;
-		esac
-	else
-		printf "\n$(c warning 'No supported agents detected on this system.')\n" >&2
-		prompt_agent_selection
+	printf "\n$(c heading 'Select agents to configure:')\n\n" >&2
+	_cb_render
+
+	if ! _tui_setup; then
+		# Raw mode failed — fall back to simple prompt
+		select_agents_simple
+		return
 	fi
+
+	trap '_tui_teardown; printf "\n" >&2; exit 130' INT
+
+	while true; do
+		_read_key
+		case "$_KEY" in
+			UP)
+				_cb_cur=$(( (_cb_cur - 1 + _cb_count) % _cb_count ))
+				_cb_redraw
+				;;
+			DOWN)
+				_cb_cur=$(( (_cb_cur + 1) % _cb_count ))
+				_cb_redraw
+				;;
+			TOGGLE)
+				local cur_sel
+				eval "cur_sel=\$_cb_sel_$_cb_cur"
+				if [ "$cur_sel" = 1 ]; then
+					eval "_cb_sel_$_cb_cur=0"
+				else
+					eval "_cb_sel_$_cb_cur=1"
+				fi
+				_cb_redraw
+				;;
+			CONFIRM)
+				_tui_teardown
+				trap - INT
+				# Collect selected agents
+				local result="" i=0
+				for agent in $SUPPORTED_AGENTS; do
+					local sel
+					eval "sel=\$_cb_sel_$i"
+					[ "$sel" = 1 ] && result="$result $agent"
+					i=$((i + 1))
+				done
+				SELECTED_AGENTS=$(trim "$result")
+				if [ -z "$SELECTED_AGENTS" ]; then
+					printf "\n$(c warning 'No agents selected.')\n" >&2
+					exit 0
+				fi
+				return
+				;;
+			QUIT)
+				_tui_teardown
+				trap - INT
+				printf "\n" >&2
+				exit 130
+				;;
+		esac
+	done
+}
+
+# Fallback: simple numbered prompt for when raw mode is not available.
+# Sets SELECTED_AGENTS to space-separated list.
+select_agents_simple() {
+	printf "\n$(c heading 'Select agents to configure:')\n\n" >&2
+	local i=1
+	for agent in $SUPPORTED_AGENTS; do
+		printf "  %d) %s\n" "$i" "$(agent_label "$agent")" >&2
+		i=$((i + 1))
+	done
+	printf "  %d) All agents\n" "$i" >&2
+	printf "\nEnter numbers (space-separated): " >&2
+	read -r response <&3
+
+	response=$(trim "$response")
+	if [ -z "$response" ] || [ "$response" = "$i" ]; then
+		SELECTED_AGENTS="$SUPPORTED_AGENTS"
+		return
+	fi
+
+	local result=""
+	for num in $response; do
+		local j=1
+		for agent in $SUPPORTED_AGENTS; do
+			if [ "$j" = "$num" ]; then
+				result="$result $agent"
+			fi
+			j=$((j + 1))
+		done
+	done
+	result=$(trim "$result")
+	if [ -z "$result" ]; then
+		SELECTED_AGENTS="$SUPPORTED_AGENTS"
+	else
+		SELECTED_AGENTS="$result"
+	fi
+}
+
+# Main entry point for agent selection (interactive).
+# Sets SELECTED_AGENTS — must be called directly, not in a subshell.
+select_agents() {
+	if _tui_available; then
+		select_agents_checkbox
+	else
+		select_agents_simple
+	fi
+}
+
+# Check whether the TUI can be used (stty raw works on our input FD)
+_tui_available() {
+	local saved
+	saved=$(stty -g <&3 2>/dev/null) || return 1
+	stty raw -echo <&3 2>/dev/null || return 1
+	stty "$saved" <&3 2>/dev/null
+	return 0
 }
 
 # ============================================
@@ -924,7 +1160,11 @@ cleanup_change_files() {
 	done
 }
 
-trap cleanup_change_files EXIT
+cleanup() {
+	cleanup_change_files
+	[ -n "$USER_INPUT_FD" ] && exec 3<&- 2>/dev/null || true
+}
+trap cleanup EXIT
 
 # ============================================
 # Ledger display
@@ -982,7 +1222,7 @@ display_ledger() {
 ask_confirmation() {
 	local response
 	printf "Apply these changes? [y/N]: "
-	read -r response
+	read -r response <&3
 
 	case "$response" in
 		[yY]|[yY][eE][sS]) return 0 ;;
@@ -1299,13 +1539,38 @@ main() {
 		esac
 	fi
 
+	open_user_input
+
+	check_perl
+
+	cd "$project_dir" || panic 2 "Cannot access directory: $(c path "'$project_dir'")"
+
+	# Prompt for installation location if not specified and not auto-confirm
+	if [ "$INSTALL_MODE" = "project" ] && [ "$auto_confirm" = false ] && is_interactive; then
+		printf "\n$(c heading 'Installation location:')\n\n"
+		printf "  $(c option 1)) $(c option Project) - .claude/settings.json (shared, tracked in git)\n"
+		printf "  $(c option 2)) $(c option Global)  - ~/.claude/settings.json (user home, all projects)\n"
+		printf "\n"
+		printf "Choice [$(c option 1)]: "
+		read -r choice <&3
+
+		choice=$(trim "${choice:-1}")
+		case "$choice" in
+			1|project|Project) INSTALL_MODE="project" ;;
+			2|global|Global)   INSTALL_MODE="global" ;;
+			*) panic 2 "Invalid choice: $choice" ;;
+		esac
+		printf "\n"
+	fi
+
 	local enabled_agents=""
 
 	if [ -z "$agents" ]; then
 		# No agents specified - use interactive selection if available
-		if [ "$auto_confirm" = false ] && [ -t 0 ]; then
-			enabled_agents=$(select_agents)
-			enabled_agents=$(trim "$enabled_agents")
+		if [ "$auto_confirm" = false ] && is_interactive; then
+			SELECTED_AGENTS=""
+			select_agents
+			enabled_agents="$SELECTED_AGENTS"
 		else
 			# Non-interactive mode: use all supported agents
 			enabled_agents="$SUPPORTED_AGENTS"
@@ -1336,28 +1601,6 @@ main() {
 		fi
 	done
 
-	check_perl
-
-	cd "$project_dir" || panic 2 "Cannot access directory: $(c path "'$project_dir'")"
-
-	# Prompt for installation location if not specified and not auto-confirm
-	if [ "$INSTALL_MODE" = "project" ] && [ "$auto_confirm" = false ] && [ -t 0 ]; then
-		printf "\n$(c heading 'Installation location:')\n\n"
-		printf "  $(c option 1)) $(c option Project) - .claude/settings.json (shared, tracked in git)\n"
-		printf "  $(c option 2)) $(c option Global)  - ~/.claude/settings.json (user home, all projects)\n"
-		printf "\n"
-		printf "Choice [$(c option 1)]: "
-		read -r choice
-
-		choice=$(trim "${choice:-1}")
-		case "$choice" in
-			1|project|Project) INSTALL_MODE="project" ;;
-			2|global|Global)   INSTALL_MODE="global" ;;
-			*) panic 2 "Invalid choice: $choice" ;;
-		esac
-		printf "\n"
-	fi
-
 	printf "\n$(c heading '=== AGENTS.md Polyfill Installer ===')\n"
 	printf "Version: $VERSION\n"
 	printf "Project: $(pwd)\n"
@@ -1380,7 +1623,7 @@ main() {
 		exit 0
 	fi
 
-	if [ "$auto_confirm" = false ]; then
+	if [ "$auto_confirm" = false ] && is_interactive; then
 		if ! ask_confirmation; then
 			printf "\n$(c warning 'Installation cancelled')\n\n"
 			exit 0
