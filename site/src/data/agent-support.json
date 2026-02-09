@@ -1,0 +1,23 @@
+[
+  {
+    "agent": "Claude Code",
+    "basic": false,
+    "nested": false,
+    "selective": false,
+    "skills": true
+  },
+  {
+    "agent": "Gemini CLI",
+    "basic": "warning",
+    "nested": true,
+    "selective": false,
+    "skills": "warning"
+  },
+  {
+    "agent": "Cursor IDE",
+    "basic": true,
+    "nested": false,
+    "selective": true,
+    "skills": true
+  }
+]

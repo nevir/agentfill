@@ -1,17 +1,31 @@
-import { useState, useEffect } from 'react';
-import { motion, useScroll, useTransform } from 'motion/react';
+import { useState, useEffect, useRef } from 'react';
+import { motion, useScroll, useTransform, useInView } from 'motion/react';
 import { FileText, FolderTree, Target, Sparkles, Check, X, AlertCircle, Copy, ArrowDown } from 'lucide-react';
+import agentSupportData from '../data/agent-support.json';
 
 export default function App() {
   const [copied, setCopied] = useState(false);
+  const [withAgentfill, setWithAgentfill] = useState(false);
   const { scrollYProgress } = useScroll();
   const headerY = useTransform(scrollYProgress, [0, 0.1], [0, -20]);
+  const comparisonRef = useRef<HTMLElement>(null);
+  const isComparisonInView = useInView(comparisonRef, { amount: 0.5 });
 
   const installCommand = 'curl -fsSL https://agentfill.dev/install | sh';
 
   useEffect(() => {
     document.title = 'agentfill';
   }, []);
+
+  // Trigger the flip when user scrolls past the comparison section
+  useEffect(() => {
+    if (isComparisonInView) {
+      const timer = setTimeout(() => {
+        setWithAgentfill(true);
+      }, 1750);
+      return () => clearTimeout(timer);
+    }
+  }, [isComparisonInView]);
 
   const copyToClipboard = () => {
     const textArea = document.createElement('textarea');
@@ -61,11 +75,13 @@ export default function App() {
     }
   ];
 
-  const comparisonData = [
-    { agent: 'Claude Code', basic: false, nested: false, selective: false, skills: true },
-    { agent: 'Gemini CLI', basic: 'warning', nested: true, selective: false, skills: 'warning' },
-    { agent: 'Cursor IDE', basic: true, nested: false, selective: true, skills: true }
-  ];
+  const comparisonData = agentSupportData.map(agent => ({
+    agent: agent.agent,
+    basic: agent.basic,
+    nested: agent.nested,
+    selective: agent.selective,
+    skills: agent.skills
+  }));
 
   return (
     <div className="min-h-screen bg-white text-black">
@@ -233,15 +249,15 @@ export default function App() {
             className="mb-16 max-w-4xl mx-auto"
           >
             <div className="border-4 border-black p-6 bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <code className="text-sm md:text-base font-mono flex-1 text-left break-all">
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+                <code className="text-sm md:text-base font-mono flex-1 text-left overflow-x-auto">
                   {installCommand}
                 </code>
                 <motion.button
                   whileHover={{ scale: 1.05, x: 2, y: 2 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={copyToClipboard}
-                  className="flex-shrink-0 bg-yellow-400 hover:bg-yellow-300 border-4 border-black px-6 py-3 font-black uppercase transition-colors flex items-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                  className="flex-shrink-0 bg-yellow-400 hover:bg-yellow-300 border-4 border-black px-6 py-3 font-black uppercase transition-colors flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
                 >
                   {copied ? (
                     <>
@@ -415,21 +431,41 @@ export default function App() {
       </section>
 
       {/* Comparison Table */}
-      <section className="relative py-24 px-6 bg-black text-white">
+      <section ref={comparisonRef} className="relative py-24 px-6 bg-black text-white">
         <div className="max-w-6xl mx-auto">
-          <motion.h2
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-[clamp(2rem,6vw,4rem)] font-black uppercase leading-none mb-16"
-          >
-            Native Support
-            <br />
-            <span className="bg-yellow-400 text-black px-4 inline-block rotate-1">vs</span>
-            <br />
-            Agentfill
-          </motion.h2>
+          <div className="relative mb-16">
+            <motion.h2
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="text-[clamp(2rem,6vw,4rem)] font-black uppercase leading-none"
+            >
+              <div className="relative inline-block">
+                <motion.span
+                  animate={{ 
+                    opacity: withAgentfill ? 0 : 1,
+                    y: withAgentfill ? -20 : 0
+                  }}
+                  transition={{ duration: 0.5 }}
+                  className="block"
+                >
+                  Without agentfill:
+                </motion.span>
+                <motion.span
+                  animate={{ 
+                    opacity: withAgentfill ? 1 : 0,
+                    y: withAgentfill ? 0 : 20
+                  }}
+                  transition={{ duration: 0.5, delay: 0.2 }}
+                  className="absolute top-0 left-0 bg-yellow-400 text-black px-4 inline-block rotate-1"
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  With agentfill:
+                </motion.span>
+              </div>
+            </motion.h2>
+          </div>
 
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -461,32 +497,164 @@ export default function App() {
                     >
                       <td className="px-6 py-4 font-black">{row.agent}</td>
                       <td className="px-6 py-4 text-center">
-                        {row.basic === true && <Check className="w-6 h-6 mx-auto" strokeWidth={3} />}
-                        {row.basic === false && <X className="w-6 h-6 mx-auto" strokeWidth={3} />}
-                        {row.basic === 'warning' && <AlertCircle className="w-6 h-6 mx-auto" strokeWidth={3} />}
+                        <div className="relative inline-block" style={{ transformStyle: 'preserve-3d' }}>
+                          {/* Before state */}
+                          <motion.div
+                            animate={{
+                              rotateY: (withAgentfill && row.basic !== true) ? 90 : 0,
+                            }}
+                            transition={{
+                              duration: 0.3,
+                              delay: index * 0.1,
+                            }}
+                            style={{ backfaceVisibility: 'hidden' }}
+                            className="inline-block"
+                          >
+                            {row.basic === true && <Check className="w-6 h-6 mx-auto" strokeWidth={3} />}
+                            {row.basic === false && <X className="w-6 h-6 mx-auto" strokeWidth={3} />}
+                            {row.basic === 'warning' && <AlertCircle className="w-6 h-6 mx-auto" strokeWidth={3} />}
+                          </motion.div>
+                          {/* After state */}
+                          {withAgentfill && row.basic !== true && (
+                            <motion.div
+                              initial={{ rotateY: -90 }}
+                              animate={{ rotateY: 0 }}
+                              transition={{
+                                duration: 0.3,
+                                delay: index * 0.1 + 0.3,
+                              }}
+                              style={{ backfaceVisibility: 'hidden' }}
+                              className="inline-block absolute top-0 left-0"
+                            >
+                              <Check className="w-6 h-6 mx-auto" strokeWidth={3} />
+                            </motion.div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {row.nested === true && <Check className="w-6 h-6 mx-auto" strokeWidth={3} />}
-                        {row.nested === false && <X className="w-6 h-6 mx-auto" strokeWidth={3} />}
+                        <div className="relative inline-block" style={{ transformStyle: 'preserve-3d' }}>
+                          {/* Before state */}
+                          <motion.div
+                            animate={{
+                              rotateY: (withAgentfill && row.nested !== true) ? 90 : 0,
+                            }}
+                            transition={{
+                              duration: 0.3,
+                              delay: index * 0.1 + 0.05,
+                            }}
+                            style={{ backfaceVisibility: 'hidden' }}
+                            className="inline-block"
+                          >
+                            {row.nested === true && <Check className="w-6 h-6 mx-auto" strokeWidth={3} />}
+                            {row.nested === false && <X className="w-6 h-6 mx-auto" strokeWidth={3} />}
+                          </motion.div>
+                          {/* After state */}
+                          {withAgentfill && row.nested !== true && (
+                            <motion.div
+                              initial={{ rotateY: -90 }}
+                              animate={{ rotateY: 0 }}
+                              transition={{
+                                duration: 0.3,
+                                delay: index * 0.1 + 0.05 + 0.3,
+                              }}
+                              style={{ backfaceVisibility: 'hidden' }}
+                              className="inline-block absolute top-0 left-0"
+                            >
+                              <Check className="w-6 h-6 mx-auto" strokeWidth={3} />
+                            </motion.div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {row.selective === true && <Check className="w-6 h-6 mx-auto" strokeWidth={3} />}
-                        {row.selective === false && <X className="w-6 h-6 mx-auto" strokeWidth={3} />}
+                        <div className="relative inline-block" style={{ transformStyle: 'preserve-3d' }}>
+                          {/* Before state */}
+                          <motion.div
+                            animate={{
+                              rotateY: (withAgentfill && row.selective !== true) ? 90 : 0,
+                            }}
+                            transition={{
+                              duration: 0.3,
+                              delay: index * 0.1 + 0.1,
+                            }}
+                            style={{ backfaceVisibility: 'hidden' }}
+                            className="inline-block"
+                          >
+                            {row.selective === true && <Check className="w-6 h-6 mx-auto" strokeWidth={3} />}
+                            {row.selective === false && <X className="w-6 h-6 mx-auto" strokeWidth={3} />}
+                          </motion.div>
+                          {/* After state */}
+                          {withAgentfill && row.selective !== true && (
+                            <motion.div
+                              initial={{ rotateY: -90 }}
+                              animate={{ rotateY: 0 }}
+                              transition={{
+                                duration: 0.3,
+                                delay: index * 0.1 + 0.1 + 0.3,
+                              }}
+                              style={{ backfaceVisibility: 'hidden' }}
+                              className="inline-block absolute top-0 left-0"
+                            >
+                              <Check className="w-6 h-6 mx-auto" strokeWidth={3} />
+                            </motion.div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {row.skills === true && <Check className="w-6 h-6 mx-auto" strokeWidth={3} />}
-                        {row.skills === false && <X className="w-6 h-6 mx-auto" strokeWidth={3} />}
-                        {row.skills === 'warning' && <AlertCircle className="w-6 h-6 mx-auto" strokeWidth={3} />}
+                        <div className="relative inline-block" style={{ transformStyle: 'preserve-3d' }}>
+                          {/* Before state */}
+                          <motion.div
+                            animate={{
+                              rotateY: (withAgentfill && row.skills !== true) ? 90 : 0,
+                            }}
+                            transition={{
+                              duration: 0.3,
+                              delay: index * 0.1 + 0.15,
+                            }}
+                            style={{ backfaceVisibility: 'hidden' }}
+                            className="inline-block"
+                          >
+                            {row.skills === true && <Check className="w-6 h-6 mx-auto" strokeWidth={3} />}
+                            {row.skills === false && <X className="w-6 h-6 mx-auto" strokeWidth={3} />}
+                            {row.skills === 'warning' && <AlertCircle className="w-6 h-6 mx-auto" strokeWidth={3} />}
+                          </motion.div>
+                          {/* After state */}
+                          {withAgentfill && row.skills !== true && (
+                            <motion.div
+                              initial={{ rotateY: -90 }}
+                              animate={{ rotateY: 0 }}
+                              transition={{
+                                duration: 0.3,
+                                delay: index * 0.1 + 0.15 + 0.3,
+                              }}
+                              style={{ backfaceVisibility: 'hidden' }}
+                              className="inline-block absolute top-0 left-0"
+                            >
+                              <Check className="w-6 h-6 mx-auto" strokeWidth={3} />
+                            </motion.div>
+                          )}
+                        </div>
                       </td>
                     </motion.tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          </motion.div>
 
-            <div className="px-6 py-6 bg-yellow-400 text-black border-t-4 border-white">
-              <p className="text-center font-black uppercase text-lg">
-                With Agentfill: Full support across all agents ✓
+          {/* Animated callout */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 40 }}
+            animate={{ 
+              opacity: withAgentfill ? 1 : 0,
+              scale: withAgentfill ? 1 : 0.9,
+              y: withAgentfill ? 0 : 40
+            }}
+            transition={{ duration: 0.6, delay: 0.8 }}
+            className="mt-12 pointer-events-none"
+          >
+            <div className="bg-white text-black p-8 shadow-[12px_12px_0px_0px_rgba(250,204,21,1)] -rotate-1">
+              <p className="text-center font-black uppercase text-3xl md:text-4xl leading-tight">
+                Every configuration feature,<br />every agent ✓
               </p>
             </div>
           </motion.div>
@@ -511,15 +679,15 @@ export default function App() {
             Standardize AGENTS.md across Claude Code, Gemini CLI, Cursor, and beyond.
           </p>
           <div className="border-4 border-black p-6 bg-white shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-w-4xl mx-auto">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <code className="text-sm md:text-base font-mono flex-1 text-left break-all">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+              <code className="text-sm md:text-base font-mono flex-1 text-left overflow-x-auto">
                 {installCommand}
               </code>
               <motion.button
                 whileHover={{ scale: 1.05, x: 2, y: 2 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={copyToClipboard}
-                className="flex-shrink-0 bg-black text-white border-4 border-black px-6 py-3 font-black uppercase transition-all flex items-center gap-2 hover:bg-gray-900"
+                className="flex-shrink-0 bg-black text-white border-4 border-black px-6 py-3 font-black uppercase transition-all flex items-center justify-center gap-2 hover:bg-gray-900"
               >
                 {copied ? (
                   <>
