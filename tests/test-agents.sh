@@ -90,15 +90,15 @@ agent_config_dir() {
 
 # Get the default list of models to test for an agent
 # Returns the latest version of each major model type
-agent_models() {
+default_agent_models() {
 	local agent="$1"
 
 	case "$agent" in
 		claude)     echo "opus sonnet haiku" ;;
 		codex)      echo "gpt-5.3-codex" ;;
 		copilot)    echo "claude-sonnet-4.5 gpt-5" ;;
-		cursor-cli) echo "sonnet-4 gpt-5" ;;
-		gemini)     echo "gemini-2.5-pro gemini-2.5-flash" ;;
+		cursor-cli) echo "composer-1.5 gpt-5.3-codex opus-4.6-thinking sonnet-4.6-thinking gemini-3-pro gemini-3-flash" ;;
+		gemini)     echo "gemini-3-pro gemini-3-flash" ;;
 	esac
 }
 
@@ -715,7 +715,7 @@ show_help() {
 		local binary
 		binary=$(agent_binary "$agent")
 		local models
-		models=$(agent_models "$agent")
+		models=$(default_agent_models "$agent")
 		if command -v "$binary" >/dev/null 2>&1; then
 			printf "  $(c agent %-13s) $(c success ✓ available)  %s\n" "$agent" "$models"
 		else
@@ -1456,7 +1456,7 @@ main() {
 			debug_model="$MODEL_FILTER"
 		else
 			# Use first default model for the agent
-			debug_model=$(agent_models "$agent")
+			debug_model=$(default_agent_models "$agent")
 			debug_model="${debug_model%% *}"
 		fi
 
@@ -1598,7 +1598,7 @@ main() {
 			if [ -n "$MODEL_FILTER" ]; then
 				models_to_run="$MODEL_FILTER"
 			else
-				models_to_run=$(agent_models "$agent")
+				models_to_run=$(default_agent_models "$agent")
 			fi
 			for model in $models_to_run; do
 				local model_len=${#model}
@@ -1638,7 +1638,7 @@ main() {
 			if [ -n "$MODEL_FILTER" ]; then
 				models_to_run="$MODEL_FILTER"
 			else
-				models_to_run=$(agent_models "$agent")
+				models_to_run=$(default_agent_models "$agent")
 			fi
 			for model in $models_to_run; do
 				for test_name in $tests_to_run; do
