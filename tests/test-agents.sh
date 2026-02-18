@@ -27,13 +27,17 @@ KNOWN_AGENTS="claude codex copilot cursor-cli gemini"
 agent_command() {
 	local agent="$1"
 	local prompt="$2"
+	local model="$3"
+
+	local model_flag=""
+	[ -n "$model" ] && model_flag="--model $model"
 
 	case "$agent" in
-		claude)     echo "echo \"$prompt\" | claude --print" ;;
-		codex)      echo "echo \"$prompt\" | codex exec -" ;;
-		copilot)    echo "copilot -p \"$prompt\"" ;;
-		cursor-cli) echo "echo \"$prompt\" | cursor-agent --print" ;;
-		gemini)     echo "echo \"$prompt\" | gemini" ;;
+		claude)     echo "echo \"$prompt\" | claude --print $model_flag" ;;
+		codex)      echo "echo \"$prompt\" | codex exec $model_flag -" ;;
+		copilot)    echo "copilot $model_flag -p \"$prompt\"" ;;
+		cursor-cli) echo "echo \"$prompt\" | cursor-agent --print $model_flag" ;;
+		gemini)     echo "echo \"$prompt\" | gemini $model_flag" ;;
 	esac
 }
 
@@ -51,9 +55,12 @@ agent_binary() {
 # Get command to run agent interactively (for debug mode)
 agent_interactive_command() {
 	local agent="$1"
+	local model="$2"
 
-	# For most agents, binary name matches agent name
-	agent_binary "$agent"
+	local cmd
+	cmd=$(agent_binary "$agent")
+	[ -n "$model" ] && cmd="$cmd --model $model"
+	echo "$cmd"
 }
 
 agent_settings_path() {
@@ -78,6 +85,20 @@ agent_config_dir() {
 		copilot)    echo ".copilot" ;;
 		cursor-cli) echo ".cursor-agent" ;;
 		gemini)     echo ".gemini" ;;
+	esac
+}
+
+# Get the default list of models to test for an agent
+# Returns the latest version of each major model type
+agent_models() {
+	local agent="$1"
+
+	case "$agent" in
+		claude)     echo "opus sonnet haiku" ;;
+		codex)      echo "gpt-5.3-codex" ;;
+		copilot)    echo "claude-sonnet-4.5 gpt-5" ;;
+		cursor-cli) echo "sonnet-4 gpt-5" ;;
+		gemini)     echo "gemini-2.5-pro gemini-2.5-flash" ;;
 	esac
 }
 
@@ -225,6 +246,7 @@ run_debug() {
 	local agent="$1"
 	local test_name="$2"
 	local mode="$3"
+	local model="$4"
 	local test_dir="$TESTS_DIR/$test_name"
 	local sandbox_dir="$test_dir/sandbox"
 	local global_dir="$test_dir/global"
@@ -301,7 +323,8 @@ run_debug() {
 	printf "$(c heading 'Environment:')\n"
 	printf "  Temp dir:  $(c path "$temp_dir")\n"
 	printf "  Temp home: $(c path "$temp_home")\n"
-	printf "  HOME:      $(c path "$HOME")\n\n"
+	printf "  HOME:      $(c path "$HOME")\n"
+	printf "  Model:     $(c option "$model")\n\n"
 
 	printf "$(c heading 'Prompt from test:')\n"
 	cat "$test_dir/prompt.md" | sed 's/^/  /'
@@ -315,7 +338,7 @@ run_debug() {
 
 	# Run agent interactively
 	local interactive_cmd
-	interactive_cmd=$(agent_interactive_command "$agent")
+	interactive_cmd=$(agent_interactive_command "$agent" "$model")
 	eval "$interactive_cmd"
 	local exit_code=$?
 
@@ -488,6 +511,7 @@ run_test_manual() {
 	local mode="$2"
 	local temp_dir="$3"
 	local temp_home="$4"
+	local model="$5"
 	local test_dir="$TESTS_DIR/$test_name"
 	local sandbox_dir="$test_dir/sandbox"
 	local global_dir="$test_dir/global"
@@ -523,7 +547,7 @@ run_test_manual() {
 	# Display test header
 	printf "\n"
 	printf "%b\n" "$(c heading '══════════════════════════════════════════════')"
-	printf "%b  %b\n" "$(c test "$test_name")" "$(c option "[$mode]")"
+	printf "%b  %b  %b\n" "$(c test "$test_name")" "$(c option "[$mode]")" "$(c option "[$model]")"
 	printf "%b\n" "$(c heading '══════════════════════════════════════════════')"
 	printf "\n"
 
@@ -547,7 +571,7 @@ run_test_manual() {
 
 	# Check result
 	if [ -z "$extracted_answer" ]; then
-		print_test_fail "$test_name [$mode]"
+		print_test_fail "$test_name [$mode] [$model]"
 		printf "    %b\n" "$(c heading "Extracted:")"
 		print_indented 6 "<missing answer tags>"
 		printf "    %b\n" "$(c heading "Expected:")"
@@ -558,10 +582,10 @@ run_test_manual() {
 		read -r _
 		return 1
 	elif [ "$extracted_answer" = "$expected" ]; then
-		print_test_pass "$test_name [$mode]"
+		print_test_pass "$test_name [$mode] [$model]"
 		return 0
 	else
-		print_test_fail "$test_name [$mode]"
+		print_test_fail "$test_name [$mode] [$model]"
 		printf "    %b\n" "$(c heading "Extracted:")"
 		print_indented 6 "$extracted_answer"
 		printf "    %b\n" "$(c heading "Expected:")"
@@ -662,7 +686,10 @@ show_help() {
 	printf "  $(c flag --install) $(c option LEVEL)   Installation level (default: $(c option full))\n"
 	printf "                      $(c option none):     Skip install (test native agent support)\n"
 	printf "                      $(c option config):   Config only (no polyfill hooks)\n"
-	printf "                      $(c option full):     Complete installation with hooks\n\n"
+	printf "                      $(c option full):     Complete installation with hooks\n"
+	printf "  $(c flag --model) $(c option MODEL)     Override model(s) to test (repeatable, no validation)\n"
+	printf "                      Default: per-agent model list (see Agents below)\n"
+	printf "                      Accepts any value for targeting specific versions\n\n"
 
 	printf "$(c heading Test Naming:)\n"
 	printf "  Tests run in all modes by default. Use prefixes to restrict:\n"
@@ -678,6 +705,8 @@ show_help() {
 	printf "  $(c command test-agents.sh) $(c agent claude) $(c test basic-support)                  # Specific test on Claude\n"
 	printf "  $(c command test-agents.sh) $(c flag --mode) $(c option global)                         # All tests in global mode only\n"
 	printf "  $(c command test-agents.sh) $(c flag --debug) $(c option global) $(c agent claude) $(c test global-skills)   # Debug interactively\n"
+	printf "  $(c command test-agents.sh) $(c flag --model) $(c option opus) $(c agent claude)              # Test Claude with opus only\n"
+	printf "  $(c command test-agents.sh) $(c flag --model) $(c option claude-sonnet-4-6-20260101)  # Target a specific model version\n"
 	printf "  $(c command test-agents.sh) $(c agent cursor-ide) $(c test basic-support)              # Opens Cursor IDE for testing\n"
 	printf "  $(c command test-agents.sh) $(c agent manual) $(c test basic-support)                 # Manual testing (any agent)\n\n"
 
@@ -685,10 +714,12 @@ show_help() {
 	for agent in $KNOWN_AGENTS; do
 		local binary
 		binary=$(agent_binary "$agent")
+		local models
+		models=$(agent_models "$agent")
 		if command -v "$binary" >/dev/null 2>&1; then
-			printf "  $(c agent %-13s) $(c success ✓ available)\n" "$agent"
+			printf "  $(c agent %-13s) $(c success ✓ available)  %s\n" "$agent" "$models"
 		else
-			printf "  $(c agent %-13s) $(c error ✗ not found)\n" "$agent"
+			printf "  $(c agent %-13s) $(c error ✗ not found)  %s\n" "$agent" "$models"
 		fi
 		# Insert cursor-ide in alphabetical position (after cursor-cli)
 		if [ "$agent" = "cursor-cli" ]; then
@@ -726,6 +757,7 @@ COMPLETED_COUNT=0
 COL_WIDTH_TEST=0
 COL_WIDTH_MODE=0
 COL_WIDTH_AGENT=0
+COL_WIDTH_MODEL=0
 SPINNER_FRAMES="⣾⣽⣻⢿⡿⣟⣯⣷"
 SPINNER_INDEX=0
 SPINNER="⣾"
@@ -878,13 +910,15 @@ print_running_block() {
 		local agent=$(echo "$test_id" | cut -d: -f1)
 		local test_name=$(echo "$test_id" | cut -d: -f2)
 		local mode=$(echo "$test_id" | cut -d: -f3)
+		local model=$(echo "$test_id" | cut -d: -f4)
 
 		local padded_test=$(printf "%-${COL_WIDTH_TEST}s" "$test_name")
 		local padded_mode=$(printf "%-${COL_WIDTH_MODE}s" "$mode")
 		local padded_agent=$(printf "%-${COL_WIDTH_AGENT}s" "$agent")
+		local padded_model=$(printf "%-${COL_WIDTH_MODEL}s" "$model")
 
 		output="${output}
-\r${SPINNER} $(c test "$padded_test")  $(c option "$padded_mode")  $(c agent "$padded_agent")\033[K"
+\r${SPINNER} $(c test "$padded_test")  $(c option "$padded_mode")  $(c agent "$padded_agent")  $(c option "$padded_model")\033[K"
 	done
 
 	# If new block is smaller, clear extra lines
@@ -910,7 +944,8 @@ run_test_parallel() {
 	local agent="$1"
 	local test_name="$2"
 	local mode="$3"
-	local test_id="$4"
+	local model="$4"
+	local test_id="$5"
 	local result_base="$RESULTS_DIR/$test_id"
 	local test_dir="$TESTS_DIR/$test_name"
 	local sandbox_dir="$test_dir/sandbox"
@@ -984,7 +1019,7 @@ run_test_parallel() {
 	expected=$(trim "$expected")
 
 	# Get the command to run
-	local test_command=$(agent_command "$agent" "$prompt")
+	local test_command=$(agent_command "$agent" "$prompt" "$model")
 
 	# Run agent from within temp directory
 	local output
@@ -1023,12 +1058,13 @@ start_test_job() {
 	local agent="$1"
 	local test_name="$2"
 	local mode="$3"
-	local test_id="${agent}:${test_name}:${mode}"
+	local model="$4"
+	local test_id="${agent}:${test_name}:${mode}:${model}"
 
 	add_running_test "$test_id"
 
 	(
-		run_test_parallel "$agent" "$test_name" "$mode" "$test_id"
+		run_test_parallel "$agent" "$test_name" "$mode" "$model" "$test_id"
 	) &
 
 	JOB_PIDS="$JOB_PIDS $!"
@@ -1050,16 +1086,18 @@ poll_completed_tests() {
 			local agent=$(echo "$test_id" | cut -d: -f1)
 			local test_name=$(echo "$test_id" | cut -d: -f2)
 			local mode=$(echo "$test_id" | cut -d: -f3)
+			local model=$(echo "$test_id" | cut -d: -f4)
 
 			# Pad strings for alignment (pad before colorizing)
 			local padded_test=$(printf "%-${COL_WIDTH_TEST}s" "$test_name")
 			local padded_mode=$(printf "%-${COL_WIDTH_MODE}s" "$mode")
 			local padded_agent=$(printf "%-${COL_WIDTH_AGENT}s" "$agent")
+			local padded_model=$(printf "%-${COL_WIDTH_MODEL}s" "$model")
 
 			if [ "$status" = "pass" ]; then
-				printf "%b %b  %b  %b\n" "$(c success ✓)" "$(c test "$padded_test")" "$(c option "$padded_mode")" "$(c agent "$padded_agent")"
+				printf "%b %b  %b  %b  %b\n" "$(c success ✓)" "$(c test "$padded_test")" "$(c option "$padded_mode")" "$(c agent "$padded_agent")" "$(c option "$padded_model")"
 			else
-				printf "%b %b  %b  %b\n" "$(c error ✗)" "$(c test "$padded_test")" "$(c option "$padded_mode")" "$(c agent "$padded_agent")"
+				printf "%b %b  %b  %b  %b\n" "$(c error ✗)" "$(c test "$padded_test")" "$(c option "$padded_mode")" "$(c agent "$padded_agent")" "$(c option "$padded_model")"
 			fi
 
 			# Show details (always for failures, or when verbose)
@@ -1117,6 +1155,7 @@ main() {
 	local mode_arg="all"
 	local install_arg="full"
 	local parallel_jobs=4
+	local model_arg=""
 	local agent_args=""
 	local test_args=""
 	local parsing_mode="auto"  # auto, agents, tests
@@ -1179,6 +1218,21 @@ main() {
 						;;
 				esac
 				;;
+			--model)
+				case "$2" in
+					''|-*)
+						panic 2 show_usage "$(c flag "$1") requires a model name"
+						;;
+					*)
+						if [ -n "$model_arg" ]; then
+							model_arg="$model_arg $2"
+						else
+							model_arg="$2"
+						fi
+						shift 2
+						;;
+				esac
+				;;
 			*)
 				# Collect positional arguments
 				if [ "$parsing_mode" = "auto" ] || [ "$parsing_mode" = "agents" ]; then
@@ -1195,6 +1249,7 @@ main() {
 	VERBOSE=$verbose
 	export INSTALL_LEVEL=$install_arg
 	export PARALLEL_JOBS=$parallel_jobs
+	export MODEL_FILTER="$model_arg"
 	export REAL_HOME="$HOME"
 
 
@@ -1387,12 +1442,31 @@ main() {
 		local test_name="$tests_to_run"
 		local mode="$debug_mode_arg"
 
+		# Resolve model for debug mode
+		local debug_model
+		if [ -n "$MODEL_FILTER" ]; then
+			# Check that only one model was specified
+			local model_count=0
+			for m in $MODEL_FILTER; do
+				model_count=$((model_count + 1))
+			done
+			if [ "$model_count" -ne 1 ]; then
+				panic 2 show_usage "Debug mode requires exactly one model (got $model_count)"
+			fi
+			debug_model="$MODEL_FILTER"
+		else
+			# Use first default model for the agent
+			debug_model=$(agent_models "$agent")
+			debug_model="${debug_model%% *}"
+		fi
+
 		printf "\n$(c heading '=== Debug Mode ===')\n"
 		printf "Agent: $(c agent "$agent")\n"
 		printf "Test:  $(c test "$test_name")\n"
-		printf "Mode:  $(c option "$mode")\n\n"
+		printf "Mode:  $(c option "$mode")\n"
+		printf "Model: $(c option "$debug_model")\n\n"
 
-		run_debug "$agent" "$test_name" "$mode"
+		run_debug "$agent" "$test_name" "$mode" "$debug_model"
 		exit $?
 	fi
 
@@ -1402,16 +1476,22 @@ main() {
 
 	# Manual mode: sequential interactive execution
 	if [ "$is_manual" -eq 1 ]; then
+		# Resolve models for manual mode
+		local manual_models="default"
+		[ -n "$MODEL_FILTER" ] && manual_models="$MODEL_FILTER"
+
 		# Count total tests
 		local total_tests=0
-		for test_name in $tests_to_run; do
-			for mode in $modes_to_run; do
-				case "$test_name" in
-					global-*)   [ "$mode" != "global" ] && continue ;;
-					project-*)  [ "$mode" != "project" ] && continue ;;
-					combined-*) [ "$mode" != "combined" ] && continue ;;
-				esac
-				total_tests=$((total_tests + 1))
+		for model in $manual_models; do
+			for test_name in $tests_to_run; do
+				for mode in $modes_to_run; do
+					case "$test_name" in
+						global-*)   [ "$mode" != "global" ] && continue ;;
+						project-*)  [ "$mode" != "project" ] && continue ;;
+						combined-*) [ "$mode" != "combined" ] && continue ;;
+					esac
+					total_tests=$((total_tests + 1))
+				done
 			done
 		done
 
@@ -1456,19 +1536,21 @@ main() {
 				cursor "$manual_temp_dir" &
 		fi
 
-		for test_name in $tests_to_run; do
-			for mode in $modes_to_run; do
-				case "$test_name" in
-					global-*)   [ "$mode" != "global" ] && continue ;;
-					project-*)  [ "$mode" != "project" ] && continue ;;
-					combined-*) [ "$mode" != "combined" ] && continue ;;
-				esac
+		for model in $manual_models; do
+			for test_name in $tests_to_run; do
+				for mode in $modes_to_run; do
+					case "$test_name" in
+						global-*)   [ "$mode" != "global" ] && continue ;;
+						project-*)  [ "$mode" != "project" ] && continue ;;
+						combined-*) [ "$mode" != "combined" ] && continue ;;
+					esac
 
-				if run_test_manual "$test_name" "$mode" "$manual_temp_dir" "$manual_temp_home"; then
-					total_passed=$((total_passed + 1))
-				else
-					total_failed=$((total_failed + 1))
-				fi
+					if run_test_manual "$test_name" "$mode" "$manual_temp_dir" "$manual_temp_home" "$model"; then
+						total_passed=$((total_passed + 1))
+					else
+						total_failed=$((total_failed + 1))
+					fi
+				done
 			done
 		done
 
@@ -1508,21 +1590,32 @@ main() {
 		COL_WIDTH_TEST=0
 		COL_WIDTH_MODE=0
 		COL_WIDTH_AGENT=0
+		COL_WIDTH_MODEL=0
 		for agent in $agents_to_run; do
 			local agent_len=${#agent}
 			[ "$agent_len" -gt "$COL_WIDTH_AGENT" ] && COL_WIDTH_AGENT=$agent_len
-			for test_name in $tests_to_run; do
-				local test_len=${#test_name}
-				[ "$test_len" -gt "$COL_WIDTH_TEST" ] && COL_WIDTH_TEST=$test_len
-				for mode in $modes_to_run; do
-					case "$test_name" in
-						global-*)   [ "$mode" != "global" ] && continue ;;
-						project-*)  [ "$mode" != "project" ] && continue ;;
-						combined-*) [ "$mode" != "combined" ] && continue ;;
-					esac
-					local mode_len=${#mode}
-					[ "$mode_len" -gt "$COL_WIDTH_MODE" ] && COL_WIDTH_MODE=$mode_len
-					total_tests=$((total_tests + 1))
+			local models_to_run
+			if [ -n "$MODEL_FILTER" ]; then
+				models_to_run="$MODEL_FILTER"
+			else
+				models_to_run=$(agent_models "$agent")
+			fi
+			for model in $models_to_run; do
+				local model_len=${#model}
+				[ "$model_len" -gt "$COL_WIDTH_MODEL" ] && COL_WIDTH_MODEL=$model_len
+				for test_name in $tests_to_run; do
+					local test_len=${#test_name}
+					[ "$test_len" -gt "$COL_WIDTH_TEST" ] && COL_WIDTH_TEST=$test_len
+					for mode in $modes_to_run; do
+						case "$test_name" in
+							global-*)   [ "$mode" != "global" ] && continue ;;
+							project-*)  [ "$mode" != "project" ] && continue ;;
+							combined-*) [ "$mode" != "combined" ] && continue ;;
+						esac
+						local mode_len=${#mode}
+						[ "$mode_len" -gt "$COL_WIDTH_MODE" ] && COL_WIDTH_MODE=$mode_len
+						total_tests=$((total_tests + 1))
+					done
 				done
 			done
 		done
@@ -1536,27 +1629,36 @@ main() {
 		local header_test=$(printf "%-${COL_WIDTH_TEST}s" "TEST")
 		local header_mode=$(printf "%-${COL_WIDTH_MODE}s" "MODE")
 		local header_agent=$(printf "%-${COL_WIDTH_AGENT}s" "AGENT")
-		printf "  %b  %b  %b\n" "$(c heading "$header_test")" "$(c heading "$header_mode")" "$(c heading "$header_agent")"
+		local header_model=$(printf "%-${COL_WIDTH_MODEL}s" "MODEL")
+		printf "  %b  %b  %b  %b\n" "$(c heading "$header_test")" "$(c heading "$header_mode")" "$(c heading "$header_agent")" "$(c heading "$header_model")"
 
 		# Start all tests
 		for agent in $agents_to_run; do
-			for test_name in $tests_to_run; do
-				for mode in $modes_to_run; do
-					case "$test_name" in
-						global-*)   [ "$mode" != "global" ] && continue ;;
-						project-*)  [ "$mode" != "project" ] && continue ;;
-						combined-*) [ "$mode" != "combined" ] && continue ;;
-					esac
+			local models_to_run
+			if [ -n "$MODEL_FILTER" ]; then
+				models_to_run="$MODEL_FILTER"
+			else
+				models_to_run=$(agent_models "$agent")
+			fi
+			for model in $models_to_run; do
+				for test_name in $tests_to_run; do
+					for mode in $modes_to_run; do
+						case "$test_name" in
+							global-*)   [ "$mode" != "global" ] && continue ;;
+							project-*)  [ "$mode" != "project" ] && continue ;;
+							combined-*) [ "$mode" != "combined" ] && continue ;;
+						esac
 
-					wait_for_slot
-					start_test_job "$agent" "$test_name" "$mode"
+						wait_for_slot
+						start_test_job "$agent" "$test_name" "$mode" "$model"
 
-					# Update running block
-					clear_running_block
-					print_running_block "$total_tests" "$COMPLETED_COUNT"
+						# Update running block
+						clear_running_block
+						print_running_block "$total_tests" "$COMPLETED_COUNT"
 
-					# Poll for completed tests
-					poll_completed_tests "$total_tests"
+						# Poll for completed tests
+						poll_completed_tests "$total_tests"
+					done
 				done
 			done
 		done
