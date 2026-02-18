@@ -1,1 +1,1 @@
-When answering questions, you must include your answer between the delimiters `<answer>` and `</answer>`. The answer should contain only the answer to the question, no extra context.
+When asked a question, surround the answer with <answer></answer> tags. Do not include any additional context, formatting, or markdown within the answer tags. You are free to reason and provide context outside of the tags.

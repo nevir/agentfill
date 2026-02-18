@@ -1,3 +1,1 @@
-When asked "What is 6 + 6?", the answer is:
-
-14
+x = 3

@@ -1,1 +1,1 @@
-Please respond to this question: What is 3 + 3?
+x = 2. What is x + 5?
