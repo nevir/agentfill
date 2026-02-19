@@ -676,7 +676,7 @@ show_help() {
 	printf "$(c heading Options:)\n"
 	printf "  $(c flag -h), $(c flag --help)        Show this help message\n"
 	printf "  $(c flag -v), $(c flag --verbose)     Show full output for all tests\n"
-	printf "  $(c flag -j), $(c flag --jobs) $(c option N)      Run N tests in parallel (default: $(c option 4))\n"
+	printf "  $(c flag -j), $(c flag --jobs) $(c option N)      Run N tests in parallel (default: $(c option 8))\n"
 	printf "  $(c flag --debug) $(c option MODE)      Run one test interactively for debugging\n"
 	printf "  $(c flag --mode) $(c option MODE)       Installation mode (default: $(c option all))\n"
 	printf "                      $(c option project):  Project-level install only\n"
@@ -1162,7 +1162,7 @@ main() {
 	local debug_mode_arg=""
 	local mode_arg="all"
 	local install_arg="full"
-	local parallel_jobs=4
+	local parallel_jobs=8
 	local model_arg=""
 	local agent_args=""
 	local test_args=""
