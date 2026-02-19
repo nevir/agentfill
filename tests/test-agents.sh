@@ -94,7 +94,7 @@ default_agent_models() {
 	local agent="$1"
 
 	case "$agent" in
-		claude)     echo "opus sonnet haiku" ;;
+		claude)     echo "opus sonnet" ;;
 		codex)      echo "gpt-5.3-codex" ;;
 		copilot)    echo "claude-sonnet-4.5 gpt-5" ;;
 		cursor-cli) echo "composer-1.5 gpt-5.3-codex opus-4.6-thinking sonnet-4.6-thinking gemini-3-pro gemini-3-flash" ;;
