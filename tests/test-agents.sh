@@ -1125,6 +1125,14 @@ poll_completed_tests() {
 				print_indented 6 "$extracted"
 				printf "    %b\n" "$(c heading "Expected:")"
 				print_indented 6 "$expected"
+
+				# Actionable commands (failures only)
+				if [ "$status" != "pass" ]; then
+					printf "    %b\n" "$(c heading "Retry:")"
+					print_indented 6 "$(c command ./tests/test-agents.sh) $(c flag --mode) $(c option "$mode") $(c flag --model) $(c option "$model") $(c flag --install) $(c option "$INSTALL_LEVEL") $(c agent "$agent") $(c test "$test_name")"
+					printf "    %b\n" "$(c heading "Shell:")"
+					print_indented 6 "(cd $temp_dir && HOME=$temp_home exec /bin/sh)"
+				fi
 			fi
 
 			remove_running_test "$test_id"
