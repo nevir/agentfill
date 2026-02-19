@@ -116,8 +116,9 @@ agent_skills_dir() {
 }
 
 # Copy agent credentials from real HOME to temp HOME
-# Copies the agent's config directory and root-level config files,
-# but excludes settings files that will be created by install.sh
+# Only copies the specific files needed for authentication — NOT the
+# entire config directory. This prevents hooks, skills, projects, and
+# other state from leaking into the sandboxed test environment.
 copy_agent_credentials() {
 	local agent="$1"
 	local real_home="$2"
@@ -130,24 +131,27 @@ copy_agent_credentials() {
 	local src="$real_home/$config_dir"
 	local dst="$temp_home/$config_dir"
 
-	# Copy agent config directory if it exists
+	# Copy only credential files (whitelist approach per agent)
 	if [ -d "$src" ]; then
-		mkdir -p "$dst"
-		cp -R "$src/"* "$src/".* "$dst/" 2>/dev/null || true
-
-		# Remove settings files that will be created by install.sh
-		# (we want fresh settings, but keep credentials)
-		rm -f "$dst/settings.json" 2>/dev/null || true
-		rm -f "$dst/settings.local.json" 2>/dev/null || true
-		rm -f "$dst/config.toml" 2>/dev/null || true
-		rm -f "$dst/config.json" 2>/dev/null || true
+		case "$agent" in
+			claude)
+				# Claude auth is via keychain / ANTHROPIC_API_KEY — no files needed
+				;;
+			*)
+				# For other agents, copy config dir but remove settings
+				# TODO: switch to whitelist once credential files are identified
+				mkdir -p "$dst"
+				cp -R "$src/"* "$src/".* "$dst/" 2>/dev/null || true
+				rm -f "$dst/settings.json" 2>/dev/null || true
+				rm -f "$dst/settings.local.json" 2>/dev/null || true
+				rm -f "$dst/config.toml" 2>/dev/null || true
+				rm -f "$dst/config.json" 2>/dev/null || true
+				;;
+		esac
 	fi
 
 	# Copy root-level config files (some agents store credentials here)
 	case "$agent" in
-		claude)
-			[ -f "$real_home/.claude.json" ] && cp "$real_home/.claude.json" "$temp_home/"
-			;;
 		gemini)
 			[ -f "$real_home/.gemini.json" ] && cp "$real_home/.gemini.json" "$temp_home/"
 			;;
@@ -161,27 +165,6 @@ copy_agent_credentials() {
 	fi
 }
 
-# Get API key from system keychain for an agent
-# Returns the API key or empty string if not found
-get_agent_api_key() {
-	local agent="$1"
-
-	case "$agent" in
-		claude)
-			security find-generic-password -s "Claude Code" -w 2>/dev/null || true
-			;;
-	esac
-}
-
-# Get the environment variable name for an agent's API key
-agent_api_key_env_var() {
-	local agent="$1"
-
-	case "$agent" in
-		claude) echo "ANTHROPIC_API_KEY" ;;
-		gemini) echo "GOOGLE_API_KEY" ;;
-	esac
-}
 
 # ============================================
 # Agent-specific Utilities
@@ -272,20 +255,9 @@ run_debug() {
 		cp -R "$global_dir/"* "$global_dir/".* "$temp_home/" 2>/dev/null || true
 	fi
 
-	# Get API key from keychain before changing HOME
-	local api_key
-	api_key=$(get_agent_api_key "$agent")
-
 	# Save original HOME and override it for test isolation
 	local original_home="$HOME"
 	export HOME="$temp_home"
-
-	# Export API key if we got one from keychain
-	local api_key_env_var
-	api_key_env_var=$(agent_api_key_env_var "$agent")
-	if [ -n "$api_key" ] && [ -n "$api_key_env_var" ]; then
-		export "$api_key_env_var=$api_key"
-	fi
 
 	# Change to temp dir and run install (unless level is "none")
 	cd "$temp_dir"
@@ -305,13 +277,20 @@ run_debug() {
 		esac
 	fi
 
-	# For global/combined mode with global skills, create the skills symlink
-	if { [ "$mode" = "global" ] || [ "$mode" = "combined" ]; } && [ -d "$temp_home/.agents/skills" ]; then
+	# Pre-create skills symlink for Claude (skills discovery happens before hooks)
+	# Project-level .agents/skills takes priority over global
+	local skills_source=""
+	if [ -d "$temp_dir/.agents/skills" ]; then
+		skills_source="../.agents/skills"
+	elif [ -d "$temp_home/.agents/skills" ]; then
+		skills_source="$temp_home/.agents/skills"
+	fi
+	if [ -n "$skills_source" ]; then
 		local agent_skills_target
 		agent_skills_target=$(agent_skills_dir "$agent")
 		if [ -n "$agent_skills_target" ] && [ ! -e "$temp_dir/$agent_skills_target" ]; then
 			mkdir -p "$(dirname "$temp_dir/$agent_skills_target")"
-			ln -s "$temp_home/.agents/skills" "$temp_dir/$agent_skills_target"
+			ln -s "$skills_source" "$temp_dir/$agent_skills_target"
 		fi
 	fi
 
@@ -344,9 +323,6 @@ run_debug() {
 
 	# Restore HOME
 	export HOME="$original_home"
-	if [ -n "$api_key_env_var" ]; then
-		unset "$api_key_env_var"
-	fi
 
 	# Cleanup
 	printf "\n$(c heading 'Debug session ended.')\n"
@@ -395,21 +371,9 @@ run_test() {
 		cp -R "$global_dir/"* "$global_dir/".* "$temp_home/" 2>/dev/null || true
 	fi
 
-	# Get API key from keychain before changing HOME
-	# (keychain access may depend on original HOME)
-	local api_key
-	api_key=$(get_agent_api_key "$agent")
-
 	# Save original HOME and override it for test isolation
 	local original_home="$HOME"
 	export HOME="$temp_home"
-
-	# Export API key if we got one from keychain
-	local api_key_env_var
-	api_key_env_var=$(agent_api_key_env_var "$agent")
-	if [ -n "$api_key" ] && [ -n "$api_key_env_var" ]; then
-		export "$api_key_env_var=$api_key"
-	fi
 
 	# Change to temp dir and run install (unless level is "none")
 	cd "$temp_dir"
@@ -430,14 +394,20 @@ run_test() {
 		esac
 	fi
 
-	# For global/combined mode with global skills, create the skills symlink
-	# (normally the hook does this at runtime, but skills discovery happens first)
-	if { [ "$mode" = "global" ] || [ "$mode" = "combined" ]; } && [ -d "$temp_home/.agents/skills" ]; then
+	# Pre-create skills symlink for Claude (skills discovery happens before hooks)
+	# Project-level .agents/skills takes priority over global
+	local skills_source=""
+	if [ -d "$temp_dir/.agents/skills" ]; then
+		skills_source="../.agents/skills"
+	elif [ -d "$temp_home/.agents/skills" ]; then
+		skills_source="$temp_home/.agents/skills"
+	fi
+	if [ -n "$skills_source" ]; then
 		local agent_skills_target
 		agent_skills_target=$(agent_skills_dir "$agent")
 		if [ -n "$agent_skills_target" ] && [ ! -e "$temp_dir/$agent_skills_target" ]; then
 			mkdir -p "$(dirname "$temp_dir/$agent_skills_target")"
-			ln -s "$temp_home/.agents/skills" "$temp_dir/$agent_skills_target"
+			ln -s "$skills_source" "$temp_dir/$agent_skills_target"
 		fi
 	fi
 
@@ -473,11 +443,8 @@ run_test() {
 	local extracted_answer=$(extract_answer "$output")
 	extracted_answer=$(trim "$extracted_answer")
 
-	# Restore HOME and unset API key
+	# Restore HOME
 	export HOME="$original_home"
-	if [ -n "$api_key_env_var" ]; then
-		unset "$api_key_env_var"
-	fi
 
 	# Set these for display_result
 	TEST_EXPECTED="$expected"
@@ -972,19 +939,8 @@ run_test_parallel() {
 		cp -R "$global_dir/"* "$global_dir/".* "$temp_home/" 2>/dev/null || true
 	fi
 
-	# Get API key from keychain before changing HOME
-	local api_key
-	api_key=$(get_agent_api_key "$agent")
-
 	# Override HOME for test isolation
 	export HOME="$temp_home"
-
-	# Export API key if we got one from keychain
-	local api_key_env_var
-	api_key_env_var=$(agent_api_key_env_var "$agent")
-	if [ -n "$api_key" ] && [ -n "$api_key_env_var" ]; then
-		export "$api_key_env_var=$api_key"
-	fi
 
 	# Change to temp dir and run install (unless level is "none")
 	cd "$temp_dir"
@@ -1004,13 +960,20 @@ run_test_parallel() {
 		esac
 	fi
 
-	# For global/combined mode with global skills, create the skills symlink
-	if { [ "$mode" = "global" ] || [ "$mode" = "combined" ]; } && [ -d "$temp_home/.agents/skills" ]; then
+	# Pre-create skills symlink for Claude (skills discovery happens before hooks)
+	# Project-level .agents/skills takes priority over global
+	local skills_source=""
+	if [ -d "$temp_dir/.agents/skills" ]; then
+		skills_source="../.agents/skills"
+	elif [ -d "$temp_home/.agents/skills" ]; then
+		skills_source="$temp_home/.agents/skills"
+	fi
+	if [ -n "$skills_source" ]; then
 		local agent_skills_target
 		agent_skills_target=$(agent_skills_dir "$agent")
 		if [ -n "$agent_skills_target" ] && [ ! -e "$temp_dir/$agent_skills_target" ]; then
 			mkdir -p "$(dirname "$temp_dir/$agent_skills_target")"
-			ln -s "$temp_home/.agents/skills" "$temp_dir/$agent_skills_target"
+			ln -s "$skills_source" "$temp_dir/$agent_skills_target"
 		fi
 	fi
 
@@ -1128,10 +1091,8 @@ poll_completed_tests() {
 
 				# Actionable commands (failures only)
 				if [ "$status" != "pass" ]; then
-					printf "    %b\n" "$(c heading "Retry:")"
-					print_indented 6 "$(c command ./tests/test-agents.sh) $(c flag --mode) $(c option "$mode") $(c flag --model) $(c option "$model") $(c flag --install) $(c option "$INSTALL_LEVEL") $(c agent "$agent") $(c test "$test_name")"
-					printf "    %b\n" "$(c heading "Shell:")"
-					print_indented 6 "(cd $temp_dir && HOME=$temp_home exec /bin/sh)"
+					printf "    %b\n" "$(c heading "Debug:")"
+					print_indented 6 "$(c command ./tests/test-agents.sh) $(c flag --debug) $(c option "$mode") $(c flag --model) $(c option "$model") $(c flag --install) $(c option "$INSTALL_LEVEL") $(c agent "$agent") $(c test "$test_name")"
 				fi
 			fi
 

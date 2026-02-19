@@ -196,12 +196,5 @@ template_claude_skills_hook() {
 		# Create symlink
 		mkdir -p "$PROJECT_DIR/.claude"
 		ln -s "$SOURCE" "$TARGET"
-
-		# Instruct user to restart (skills discovered before hook runs)
-		cat <<-end_message
-		<skills_setup>
-		Skills symlink created. Please restart Claude to discover skills in this project.
-		</skills_setup>
-		end_message
 	end_template
 }
