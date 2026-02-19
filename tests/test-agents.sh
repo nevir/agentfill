@@ -191,42 +191,40 @@ discover_tests() {
 # Test execution
 # ============================================
 
-run_debug() {
+# Set up an isolated test environment for a single test run.
+# Creates temp project dir and temp HOME, copies sandbox/global fixtures,
+# runs install, and pre-creates skills symlinks.
+#
+# Sets globals: SETUP_TEMP_DIR, SETUP_TEMP_HOME
+# Side effects: cd's into SETUP_TEMP_DIR, exports HOME=SETUP_TEMP_HOME
+setup_test_env() {
 	local agent="$1"
 	local test_name="$2"
 	local mode="$3"
-	local model="$4"
 	local test_dir="$TESTS_DIR/$test_name"
 	local sandbox_dir="$test_dir/sandbox"
 	local global_dir="$test_dir/global"
 
-	# Create isolated temp directory for test (project working directory)
-	local temp_dir
-	temp_dir=$(mktemp -d -t "agentfill-test-XXXXXX")
+	SETUP_TEMP_DIR=$(mktemp -d -t "agentfill-test-XXXXXX")
+	SETUP_TEMP_HOME=$(mktemp -d -t "agentfill-home-XXXXXX")
 
 	# Copy sandbox contents if it exists (sandbox is optional)
 	if [ -d "$sandbox_dir" ]; then
-		cp -R "$sandbox_dir/"* "$sandbox_dir/".* "$temp_dir/" 2>/dev/null || true
+		cp -R "$sandbox_dir/"* "$sandbox_dir/".* "$SETUP_TEMP_DIR/" 2>/dev/null || true
 	fi
 
-	# Create temp home directory for isolated global installs
-	local temp_home
-	temp_home=$(mktemp -d -t "agentfill-home-XXXXXX")
-
 	# Copy agent credentials from real HOME (for authentication)
-	copy_agent_credentials "$agent" "$HOME" "$temp_home"
+	copy_agent_credentials "$agent" "$REAL_HOME" "$SETUP_TEMP_HOME"
 
 	# Copy global directory contents to temp home if it exists
 	if [ -d "$global_dir" ]; then
-		cp -R "$global_dir/"* "$global_dir/".* "$temp_home/" 2>/dev/null || true
+		cp -R "$global_dir/"* "$global_dir/".* "$SETUP_TEMP_HOME/" 2>/dev/null || true
 	fi
 
-	# Save original HOME and override it for test isolation
-	local original_home="$HOME"
-	export HOME="$temp_home"
+	export HOME="$SETUP_TEMP_HOME"
 
 	# Change to temp dir and run install (unless level is "none")
-	cd "$temp_dir"
+	cd "$SETUP_TEMP_DIR"
 	if [ "$INSTALL_LEVEL" != "none" ]; then
 		local install_flags="-y --level $INSTALL_LEVEL"
 		case "$mode" in
@@ -243,7 +241,20 @@ run_debug() {
 		esac
 	fi
 
-	precreate_skills_symlinks "$agent" "$temp_dir" "$temp_home"
+	precreate_skills_symlinks "$agent" "$SETUP_TEMP_DIR" "$SETUP_TEMP_HOME"
+}
+
+run_debug() {
+	local agent="$1"
+	local test_name="$2"
+	local mode="$3"
+	local model="$4"
+	local test_dir="$TESTS_DIR/$test_name"
+
+	local original_home="$HOME"
+	setup_test_env "$agent" "$test_name" "$mode"
+	local temp_dir="$SETUP_TEMP_DIR"
+	local temp_home="$SETUP_TEMP_HOME"
 
 	# Show test info
 	printf "$(c heading 'Test files:')\n"
@@ -282,131 +293,6 @@ run_debug() {
 	printf "  Home:    $(c path "$temp_home")\n\n"
 
 	return $exit_code
-}
-
-run_test() {
-	local agent="$1"
-	local test_name="$2"
-	local mode="$3"
-	local test_dir="$TESTS_DIR/$test_name"
-	local sandbox_dir="$test_dir/sandbox"
-	local global_dir="$test_dir/global"
-
-	if [ ! -f "$test_dir/prompt.md" ]; then
-		panic 2 "$test_dir/prompt.md not found"
-	fi
-	if [ ! -f "$test_dir/expected.md" ]; then
-		panic 2 "$test_dir/expected.md not found"
-	fi
-
-	# Create isolated temp directory for test (project working directory)
-	local temp_dir
-	temp_dir=$(mktemp -d -t "agentfill-test-XXXXXX")
-
-	# Copy sandbox contents if it exists (sandbox is optional)
-	if [ -d "$sandbox_dir" ]; then
-		cp -R "$sandbox_dir/"* "$sandbox_dir/".* "$temp_dir/" 2>/dev/null || true
-	fi
-
-	# Create temp home directory for isolated global installs
-	local temp_home
-	temp_home=$(mktemp -d -t "agentfill-home-XXXXXX")
-
-	# Copy agent credentials from real HOME (for authentication)
-	# This copies the agent's config dir but removes settings files
-	copy_agent_credentials "$agent" "$HOME" "$temp_home"
-
-	# Copy global directory contents to temp home if it exists
-	# (these can override/add to what was copied from credentials)
-	if [ -d "$global_dir" ]; then
-		cp -R "$global_dir/"* "$global_dir/".* "$temp_home/" 2>/dev/null || true
-	fi
-
-	# Save original HOME and override it for test isolation
-	local original_home="$HOME"
-	export HOME="$temp_home"
-
-	# Change to temp dir and run install (unless level is "none")
-	cd "$temp_dir"
-	if [ "$INSTALL_LEVEL" != "none" ]; then
-		local install_flags="-y --level $INSTALL_LEVEL"
-		case "$mode" in
-			project)
-				"$REPO_ROOT/install.sh" $install_flags > /dev/null 2>&1
-				;;
-			global)
-				"$REPO_ROOT/install.sh" $install_flags --global > /dev/null 2>&1
-				;;
-			combined)
-				# Run both: global first, then project overlay
-				"$REPO_ROOT/install.sh" $install_flags --global > /dev/null 2>&1
-				"$REPO_ROOT/install.sh" $install_flags > /dev/null 2>&1
-				;;
-		esac
-	fi
-
-	precreate_skills_symlinks "$agent" "$temp_dir" "$temp_home"
-
-	prompt=$(cat "$test_dir/prompt.md")
-	expected=$(cat "$test_dir/expected.md")
-	expected=$(trim "$expected")
-
-	# Get the command to run
-	TEST_COMMAND=$(agent_command "$agent" "$prompt")
-
-	# Run agent from within temp directory
-	if [ "$VERBOSE" -eq 1 ]; then
-		# In verbose mode, clear the spinner line and show command and stream output
-		printf "\r\033[K"
-		printf "  $(c test $test_name)\n"
-		printf "    $(c heading Temp dir:)\n"
-		print_indented 6 "$temp_dir"
-		printf "    $(c heading Temp home:)\n"
-		print_indented 6 "$temp_home"
-		printf "    $(c heading Command:)\n"
-		print_indented 6 "$TEST_COMMAND"
-		printf "    $(c heading Full output:)\n"
-
-		output=$(eval "$TEST_COMMAND" 2>/dev/null | sed 's/^/      /' | tee /dev/stderr)
-	else
-		# In normal mode, just capture output
-		output=$(eval "$TEST_COMMAND" 2>/dev/null)
-	fi
-
-	output=$(trim "$output")
-
-	# Extract answer from <answer> tags (required)
-	local extracted_answer=$(extract_answer "$output")
-	extracted_answer=$(trim "$extracted_answer")
-
-	# Restore HOME
-	export HOME="$original_home"
-
-	# Set these for display_result
-	TEST_EXPECTED="$expected"
-	TEST_GOT="$output"
-	TEST_EXTRACTED="$extracted_answer"
-	TEST_TEMP_DIR="$temp_dir"
-	TEST_TEMP_HOME="$temp_home"
-
-	# Check if answer tags were found
-	if [ -z "$extracted_answer" ]; then
-		TEST_EXTRACTED="<missing answer tags>"
-		return 1
-	fi
-
-	local test_result=0
-	if [ "$extracted_answer" = "$expected" ]; then
-		# Clean up temp directories on success
-		rm -rf "$temp_dir"
-		rm -rf "$temp_home"
-		test_result=0
-	else
-		# Keep temp directories on failure for debugging
-		test_result=1
-	fi
-
-	return $test_result
 }
 
 run_test_manual() {
@@ -501,59 +387,6 @@ run_test_manual() {
 	fi
 }
 
-display_result() {
-	local test_name="$1"
-	local result="$2"
-	local mode="$3"
-
-	# Add mode indicator to test name
-	local display_name="$test_name"
-	if [ "$SHOW_MODE" -eq 1 ]; then
-		display_name="$test_name [$(c option "$mode")]"
-	fi
-
-	if [ "$result" -eq 0 ]; then
-		if [ "$VERBOSE" -eq 1 ]; then
-			# In verbose mode, just show the result and details
-			printf "    $(c heading Extracted:)\n"
-			printf "      %s\n" "$TEST_EXTRACTED"
-			printf "    $(c heading Expected:)\n"
-			printf "      %s\n" "$TEST_EXPECTED"
-			printf "    $(c success Result:) $(c success PASS)\n"
-		else
-			# In normal mode, clear spinner and show checkmark
-			print_test_pass "$display_name"
-		fi
-	else
-		if [ "$VERBOSE" -eq 1 ]; then
-			# In verbose mode, command and full output already shown during streaming
-			printf "    $(c heading Extracted:)\n"
-			printf "      %s\n" "$TEST_EXTRACTED"
-			printf "    $(c heading Expected:)\n"
-			printf "      %s\n" "$TEST_EXPECTED"
-			printf "    $(c error Result:) $(c error FAIL)\n"
-			printf "    $(c heading Debug:) Temp directories preserved at:\n"
-			printf "      Project: %s\n" "$TEST_TEMP_DIR"
-			printf "      Home:    %s\n" "$TEST_TEMP_HOME"
-		else
-			# In normal mode, show everything for failures
-			print_test_fail "$display_name"
-			printf "    $(c heading Temp dir:)\n"
-			print_indented 6 "$TEST_TEMP_DIR"
-			printf "    $(c heading Temp home:)\n"
-			print_indented 6 "$TEST_TEMP_HOME"
-			printf "    $(c heading Command:)\n"
-			print_indented 6 "$TEST_COMMAND"
-			printf "    $(c heading Full output:)\n"
-			print_indented 6 "$TEST_GOT"
-			printf "    $(c heading Extracted:)\n"
-			print_indented 6 "$TEST_EXTRACTED"
-			printf "    $(c heading Expected:)\n"
-			print_indented 6 "$TEST_EXPECTED"
-		fi
-	fi
-}
-
 # ============================================
 # Usage and help
 # ============================================
@@ -580,7 +413,7 @@ show_help() {
 	printf "  $(c flag -h), $(c flag --help)        Show this help message\n"
 	printf "  $(c flag -v), $(c flag --verbose)     Show full output for all tests\n"
 	printf "  $(c flag -j), $(c flag --jobs) $(c option N)      Run N tests in parallel (default: $(c option 8))\n"
-	printf "  $(c flag --debug) $(c option MODE)      Run one test interactively for debugging\n"
+	printf "  $(c flag --debug)              Run one test interactively for debugging\n"
 	printf "  $(c flag --mode) $(c option MODE)       Installation mode (default: $(c option all))\n"
 	printf "                      $(c option project):  Project-level install only\n"
 	printf "                      $(c option global):   Global install only\n"
@@ -607,7 +440,7 @@ show_help() {
 	printf "  $(c command test-agents.sh) $(c agent claude)                                # All tests on Claude\n"
 	printf "  $(c command test-agents.sh) $(c agent claude) $(c test basic-support)                  # Specific test on Claude\n"
 	printf "  $(c command test-agents.sh) $(c flag --mode) $(c option global)                         # All tests in global mode only\n"
-	printf "  $(c command test-agents.sh) $(c flag --debug) $(c option global) $(c agent claude) $(c test global-skills)   # Debug interactively\n"
+	printf "  $(c command test-agents.sh) $(c flag --mode) $(c option global) $(c flag --model) $(c option opus) $(c agent claude) $(c test global-skills) $(c flag --debug)   # Debug interactively\n"
 	printf "  $(c command test-agents.sh) $(c flag --model) $(c option opus) $(c agent claude)              # Test Claude with opus only\n"
 	printf "  $(c command test-agents.sh) $(c flag --model) $(c option claude-sonnet-4-6-20260101)  # Target a specific model version\n"
 	printf "  $(c command test-agents.sh) $(c agent cursor-ide) $(c test basic-support)              # Opens Cursor IDE for testing\n"
@@ -617,12 +450,10 @@ show_help() {
 	for agent in $KNOWN_AGENTS; do
 		local binary
 		binary=$(agent_binary "$agent")
-		local models
-		models=$(default_agent_models "$agent")
 		if command -v "$binary" >/dev/null 2>&1; then
-			printf "  $(c agent %-13s) $(c success ✓ available)  %s\n" "$agent" "$models"
+			printf "  $(c agent %-13s) $(c success ✓ available)\n" "$agent"
 		else
-			printf "  $(c agent %-13s) $(c error ✗ not found)  %s\n" "$agent" "$models"
+			printf "  $(c agent %-13s) $(c error ✗ not found)\n" "$agent"
 		fi
 		# Insert cursor-ide in alphabetical position (after cursor-cli)
 		if [ "$agent" = "cursor-cli" ]; then
@@ -851,52 +682,10 @@ run_test_parallel() {
 	local test_id="$5"
 	local result_base="$RESULTS_DIR/$test_id"
 	local test_dir="$TESTS_DIR/$test_name"
-	local sandbox_dir="$test_dir/sandbox"
-	local global_dir="$test_dir/global"
 
-	# Create isolated temp directory for test (project working directory)
-	local temp_dir
-	temp_dir=$(mktemp -d -t "agentfill-test-XXXXXX")
-
-	# Copy sandbox contents if it exists (sandbox is optional)
-	if [ -d "$sandbox_dir" ]; then
-		cp -R "$sandbox_dir/"* "$sandbox_dir/".* "$temp_dir/" 2>/dev/null || true
-	fi
-
-	# Create temp home directory for isolated global installs
-	local temp_home
-	temp_home=$(mktemp -d -t "agentfill-home-XXXXXX")
-
-	# Copy agent credentials from real HOME (for authentication)
-	copy_agent_credentials "$agent" "$REAL_HOME" "$temp_home"
-
-	# Copy global directory contents to temp home if it exists
-	if [ -d "$global_dir" ]; then
-		cp -R "$global_dir/"* "$global_dir/".* "$temp_home/" 2>/dev/null || true
-	fi
-
-	# Override HOME for test isolation
-	export HOME="$temp_home"
-
-	# Change to temp dir and run install (unless level is "none")
-	cd "$temp_dir"
-	if [ "$INSTALL_LEVEL" != "none" ]; then
-		local install_flags="-y --level $INSTALL_LEVEL"
-		case "$mode" in
-			project)
-				"$REPO_ROOT/install.sh" $install_flags > /dev/null 2>&1
-				;;
-			global)
-				"$REPO_ROOT/install.sh" $install_flags --global > /dev/null 2>&1
-				;;
-			combined)
-				"$REPO_ROOT/install.sh" $install_flags --global > /dev/null 2>&1
-				"$REPO_ROOT/install.sh" $install_flags > /dev/null 2>&1
-				;;
-		esac
-	fi
-
-	precreate_skills_symlinks "$agent" "$temp_dir" "$temp_home"
+	setup_test_env "$agent" "$test_name" "$mode"
+	local temp_dir="$SETUP_TEMP_DIR"
+	local temp_home="$SETUP_TEMP_HOME"
 
 	local prompt=$(cat "$test_dir/prompt.md")
 	local expected=$(cat "$test_dir/expected.md")
@@ -1013,7 +802,7 @@ poll_completed_tests() {
 				# Actionable commands (failures only)
 				if [ "$status" != "pass" ]; then
 					printf "    %b\n" "$(c heading "Debug:")"
-					print_indented 6 "$(c command ./tests/test-agents.sh) $(c flag --debug) $(c option "$mode") $(c flag --model) $(c option "$model") $(c flag --install) $(c option "$INSTALL_LEVEL") $(c agent "$agent") $(c test "$test_name")"
+					print_indented 6 "$(c command ./tests/test-agents.sh) $(c flag --mode) $(c option "$mode") $(c flag --model) $(c option "$model") $(c flag --install) $(c option "$INSTALL_LEVEL") $(c agent "$agent") $(c test "$test_name") $(c flag --debug)"
 				fi
 			fi
 
@@ -1041,7 +830,6 @@ main() {
 	# Parse arguments
 	local verbose=0
 	local debug_mode=0
-	local debug_mode_arg=""
 	local mode_arg="all"
 	local install_arg="full"
 	local parallel_jobs=8
@@ -1076,15 +864,7 @@ main() {
 				;;
 			--debug)
 				debug_mode=1
-				debug_mode_arg="$2"
-				case "$debug_mode_arg" in
-					project|global|combined)
-						shift 2
-						;;
-					*)
-						panic 2 show_usage "$(c flag --debug) requires a mode: $(c_list option project global combined)"
-						;;
-				esac
+				shift
 				;;
 			--mode)
 				mode_arg="$2"
@@ -1135,7 +915,7 @@ main() {
 		esac
 	done
 
-	# Export for use in run_test and subshells
+	# Export for use in subshells
 	VERBOSE=$verbose
 	export INSTALL_LEVEL=$install_arg
 	export PARALLEL_JOBS=$parallel_jobs
@@ -1151,15 +931,21 @@ main() {
 		modes_to_run="$mode_arg"
 	fi
 
-	# Show mode in output if testing multiple modes
-	local mode_count=0
-	for mode in $modes_to_run; do
-		mode_count=$((mode_count + 1))
-	done
-	if [ $mode_count -gt 1 ]; then
-		SHOW_MODE=1
-	else
-		SHOW_MODE=0
+	# Validate --debug flag requirements (mode and model)
+	if [ "$debug_mode" -eq 1 ]; then
+		if [ "$mode_arg" = "all" ]; then
+			panic 2 show_usage "$(c flag --debug) requires $(c flag --mode) to specify exactly one mode"
+		fi
+		if [ -z "$model_arg" ]; then
+			panic 2 show_usage "$(c flag --debug) requires $(c flag --model) to specify exactly one model"
+		fi
+		local model_count=0
+		for m in $model_arg; do
+			model_count=$((model_count + 1))
+		done
+		if [ "$model_count" -ne 1 ]; then
+			panic 2 show_usage "$(c flag --debug) requires exactly one model (got $model_count)"
+		fi
 	fi
 
 	# Discover available agents and tests
@@ -1318,37 +1104,19 @@ main() {
 		test_count=$((test_count + 1))
 	done
 
-	# Debug mode validation and execution
+	# Debug mode execution
 	if [ "$debug_mode" -eq 1 ]; then
-		# Validate requirements for debug mode
 		if [ "$agent_count" -ne 1 ]; then
-			panic 2 show_usage "Debug mode requires exactly one agent"
+			panic 2 show_usage "$(c flag --debug) requires exactly one agent"
 		fi
 		if [ "$test_count" -ne 1 ]; then
-			panic 2 show_usage "Debug mode requires exactly one test"
+			panic 2 show_usage "$(c flag --debug) requires exactly one test"
 		fi
 
 		local agent="$agents_to_run"
 		local test_name="$tests_to_run"
-		local mode="$debug_mode_arg"
-
-		# Resolve model for debug mode
-		local debug_model
-		if [ -n "$MODEL_FILTER" ]; then
-			# Check that only one model was specified
-			local model_count=0
-			for m in $MODEL_FILTER; do
-				model_count=$((model_count + 1))
-			done
-			if [ "$model_count" -ne 1 ]; then
-				panic 2 show_usage "Debug mode requires exactly one model (got $model_count)"
-			fi
-			debug_model="$MODEL_FILTER"
-		else
-			# Use first default model for the agent
-			debug_model=$(default_agent_models "$agent")
-			debug_model="${debug_model%% *}"
-		fi
+		local mode="$modes_to_run"
+		local debug_model="$MODEL_FILTER"
 
 		printf "\n$(c heading '=== Debug Mode ===')\n"
 		printf "Agent: $(c agent "$agent")\n"
