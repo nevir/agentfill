@@ -63,31 +63,6 @@ agent_interactive_command() {
 	echo "$cmd"
 }
 
-agent_settings_path() {
-	local agent="$1"
-
-	case "$agent" in
-		claude)     echo "$HOME/.claude/settings.json" ;;
-		codex)      echo "$HOME/.codex/config.toml" ;;
-		copilot)    echo "$HOME/.copilot/config.json" ;;
-		cursor-cli) echo "$HOME/.cursor-agent/settings.json" ;;
-		gemini)     echo "$HOME/.gemini/settings.json" ;;
-	esac
-}
-
-# Get the agent's config directory name (for credential copying)
-agent_config_dir() {
-	local agent="$1"
-
-	case "$agent" in
-		claude)     echo ".claude" ;;
-		codex)      echo ".codex" ;;
-		copilot)    echo ".copilot" ;;
-		cursor-cli) echo ".cursor-agent" ;;
-		gemini)     echo ".gemini" ;;
-	esac
-}
-
 # Get the default list of models to test for an agent
 # Returns the latest version of each major model type
 default_agent_models() {
@@ -110,9 +85,33 @@ agent_skills_dir() {
 		claude)     echo ".claude/skills" ;;
 		codex)      echo ".codex/skills" ;;
 		copilot)    echo ".github/skills" ;;
-		cursor-cli) echo ".cursor-agent/skills" ;;
+		cursor-cli) echo ".cursor/skills" ;;
 		gemini)     echo ".gemini/skills" ;;
 	esac
+}
+
+# Pre-create skills symlinks so agents discover skills before hooks run.
+# Creates symlinks independently in both project dir and HOME (if each has .agents/skills).
+precreate_skills_symlinks() {
+	local agent="$1"
+	local temp_dir="$2"
+	local temp_home="$3"
+
+	local agent_skills_target
+	agent_skills_target=$(agent_skills_dir "$agent")
+	[ -z "$agent_skills_target" ] && return
+
+	# Project-level
+	if [ -d "$temp_dir/.agents/skills" ] && [ ! -e "$temp_dir/$agent_skills_target" ]; then
+		mkdir -p "$(dirname "$temp_dir/$agent_skills_target")"
+		ln -s "../.agents/skills" "$temp_dir/$agent_skills_target"
+	fi
+
+	# Global-level (HOME)
+	if [ -d "$temp_home/.agents/skills" ] && [ ! -e "$temp_home/$agent_skills_target" ]; then
+		mkdir -p "$(dirname "$temp_home/$agent_skills_target")"
+		ln -s "../.agents/skills" "$temp_home/$agent_skills_target"
+	fi
 }
 
 # Copy agent credentials from real HOME to temp HOME
@@ -123,39 +122,6 @@ copy_agent_credentials() {
 	local agent="$1"
 	local real_home="$2"
 	local temp_home="$3"
-
-	local config_dir
-	config_dir=$(agent_config_dir "$agent")
-	[ -z "$config_dir" ] && return 0
-
-	local src="$real_home/$config_dir"
-	local dst="$temp_home/$config_dir"
-
-	# Copy only credential files (whitelist approach per agent)
-	if [ -d "$src" ]; then
-		case "$agent" in
-			claude)
-				# Claude auth is via keychain / ANTHROPIC_API_KEY — no files needed
-				;;
-			*)
-				# For other agents, copy config dir but remove settings
-				# TODO: switch to whitelist once credential files are identified
-				mkdir -p "$dst"
-				cp -R "$src/"* "$src/".* "$dst/" 2>/dev/null || true
-				rm -f "$dst/settings.json" 2>/dev/null || true
-				rm -f "$dst/settings.local.json" 2>/dev/null || true
-				rm -f "$dst/config.toml" 2>/dev/null || true
-				rm -f "$dst/config.json" 2>/dev/null || true
-				;;
-		esac
-	fi
-
-	# Copy root-level config files (some agents store credentials here)
-	case "$agent" in
-		gemini)
-			[ -f "$real_home/.gemini.json" ] && cp "$real_home/.gemini.json" "$temp_home/"
-			;;
-	esac
 
 	# Symlink macOS Keychains so agents that use the system keychain
 	# (e.g. cursor-agent stores "cursor-user") can still authenticate
@@ -277,22 +243,7 @@ run_debug() {
 		esac
 	fi
 
-	# Pre-create skills symlink for Claude (skills discovery happens before hooks)
-	# Project-level .agents/skills takes priority over global
-	local skills_source=""
-	if [ -d "$temp_dir/.agents/skills" ]; then
-		skills_source="../.agents/skills"
-	elif [ -d "$temp_home/.agents/skills" ]; then
-		skills_source="$temp_home/.agents/skills"
-	fi
-	if [ -n "$skills_source" ]; then
-		local agent_skills_target
-		agent_skills_target=$(agent_skills_dir "$agent")
-		if [ -n "$agent_skills_target" ] && [ ! -e "$temp_dir/$agent_skills_target" ]; then
-			mkdir -p "$(dirname "$temp_dir/$agent_skills_target")"
-			ln -s "$skills_source" "$temp_dir/$agent_skills_target"
-		fi
-	fi
+	precreate_skills_symlinks "$agent" "$temp_dir" "$temp_home"
 
 	# Show test info
 	printf "$(c heading 'Test files:')\n"
@@ -394,22 +345,7 @@ run_test() {
 		esac
 	fi
 
-	# Pre-create skills symlink for Claude (skills discovery happens before hooks)
-	# Project-level .agents/skills takes priority over global
-	local skills_source=""
-	if [ -d "$temp_dir/.agents/skills" ]; then
-		skills_source="../.agents/skills"
-	elif [ -d "$temp_home/.agents/skills" ]; then
-		skills_source="$temp_home/.agents/skills"
-	fi
-	if [ -n "$skills_source" ]; then
-		local agent_skills_target
-		agent_skills_target=$(agent_skills_dir "$agent")
-		if [ -n "$agent_skills_target" ] && [ ! -e "$temp_dir/$agent_skills_target" ]; then
-			mkdir -p "$(dirname "$temp_dir/$agent_skills_target")"
-			ln -s "$skills_source" "$temp_dir/$agent_skills_target"
-		fi
-	fi
+	precreate_skills_symlinks "$agent" "$temp_dir" "$temp_home"
 
 	prompt=$(cat "$test_dir/prompt.md")
 	expected=$(cat "$test_dir/expected.md")
@@ -960,22 +896,7 @@ run_test_parallel() {
 		esac
 	fi
 
-	# Pre-create skills symlink for Claude (skills discovery happens before hooks)
-	# Project-level .agents/skills takes priority over global
-	local skills_source=""
-	if [ -d "$temp_dir/.agents/skills" ]; then
-		skills_source="../.agents/skills"
-	elif [ -d "$temp_home/.agents/skills" ]; then
-		skills_source="$temp_home/.agents/skills"
-	fi
-	if [ -n "$skills_source" ]; then
-		local agent_skills_target
-		agent_skills_target=$(agent_skills_dir "$agent")
-		if [ -n "$agent_skills_target" ] && [ ! -e "$temp_dir/$agent_skills_target" ]; then
-			mkdir -p "$(dirname "$temp_dir/$agent_skills_target")"
-			ln -s "$skills_source" "$temp_dir/$agent_skills_target"
-		fi
-	fi
+	precreate_skills_symlinks "$agent" "$temp_dir" "$temp_home"
 
 	local prompt=$(cat "$test_dir/prompt.md")
 	local expected=$(cat "$test_dir/expected.md")
